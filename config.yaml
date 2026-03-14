@@ -1,0 +1,89 @@
+# CurioPilot configuration (Phase 4 -- Multi-Source)
+# See docs/PRD.md for the full schema reference.
+
+config_version: 1
+
+interests:
+  primary:
+    - "AI agents"
+    - "LangGraph"
+    - "multi-agent systems"
+    - "function calling"
+    - "MCP (Model Context Protocol)"
+  secondary:
+    - "quantized LLMs"
+    - "local inference"
+    - "prompt engineering"
+  excluded:
+    - "cryptocurrency"
+    - "web3"
+
+sources:
+  - name: "Hacker News"
+    scraper: "hackernews_api"
+    max_articles: 30
+    request_delay_seconds: 2
+
+  - name: "r/MachineLearning"
+    scraper: "reddit_json"
+    url: "r/MachineLearning"
+    max_articles: 20
+    request_delay_seconds: 3
+
+  - name: "r/LocalLLaMA"
+    scraper: "reddit_json"
+    url: "r/LocalLLaMA"
+    max_articles: 15
+    request_delay_seconds: 3
+
+  - name: "ArXiv AI"
+    scraper: "arxiv_feed"
+    query: "cat:cs.AI"
+    max_articles: 15
+    request_delay_seconds: 5
+
+  - name: "Hugging Face Papers"
+    scraper: "huggingface_scrape"
+    max_articles: 15
+    request_delay_seconds: 3
+
+  - name: "Medium AI"
+    scraper: "generic_scrape"
+    url: "https://medium.com/feed/tag/artificial-intelligence"
+    max_articles: 15
+    request_delay_seconds: 3
+
+  - name: "Medium ML"
+    scraper: "generic_scrape"
+    url: "https://medium.com/feed/tag/machine-learning"
+    max_articles: 15
+    request_delay_seconds: 3
+
+models:
+  filter_model: "qwen2.5:7b-instruct-q8_0"
+  reader_model: "qwen2.5:14b-instruct-q4_K_M"
+  embedding_model: "nomic-embed-text"
+
+ollama:
+  base_url: "http://localhost:11434"
+  timeout_seconds: 120
+  max_retries: 3
+
+scoring:
+  relevance_threshold: 6
+  novelty_weight: 0.6
+  relevance_weight: 0.4
+  min_briefing_items: 5
+  max_briefing_items: 10
+  near_duplicate_threshold: 0.92
+  related_threshold: 0.75
+  vector_novelty_weight: 0.5
+  graph_novelty_weight: 0.5
+
+chunking:
+  max_tokens_per_chunk: 28000
+
+paths:
+  briefings_dir: "./briefings"
+  database_dir: "./data"
+  graph_path: "./data/knowledge_graph.json"
