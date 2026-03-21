@@ -13,6 +13,7 @@ from curiopilot.agents.novelty_engine import NoveltyResult
 from curiopilot.config import load_config
 from curiopilot.llm.ollama import OllamaClient
 from curiopilot.models import ArticleEntry, ArticleSummary, ProgressCallback, ScoredArticle
+from curiopilot.storage.article_store import ArticleStore
 from curiopilot.storage.knowledge_graph import GraphUpdateStats
 from curiopilot.storage.url_store import URLStore
 
@@ -71,6 +72,9 @@ async def run_pipeline(
     store = URLStore(db_dir / "curiopilot.db")
     await store.open()
 
+    article_store = ArticleStore(db_dir / "curiopilot.db")
+    await article_store.open()
+
     try:
         from curiopilot.pipeline.graph import build_pipeline_graph
 
@@ -81,6 +85,7 @@ async def run_pipeline(
             "config": config,
             "client": client,
             "store": store,
+            "article_store": article_store,
             "db_dir": db_dir,
             "dry_run": dry_run,
             "no_filter": no_filter,
@@ -120,6 +125,7 @@ async def run_pipeline(
         except Exception:
             log.debug("Failed to record pipeline run", exc_info=True)
 
+        await article_store.close()
         await store.close()
         await client.close()
         result.duration_seconds = time.monotonic() - t0

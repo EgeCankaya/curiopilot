@@ -51,3 +51,5 @@ class ArticleSummary(BaseModel):
     technical_depth: int = Field(ge=1, le=5)
     related_topics: list[str]
     relationships: list[dict[str, str]] = Field(default_factory=list)
+    body_content: str = ""
+    body_content_type: str = "plaintext"

@@ -17,10 +17,15 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "tenacity>=8.2.3",
     "playwright>=1.40.0",
+    "playwright-stealth>=1.0.6",
+    "trafilatura>=2.0.0",
     "chromadb>=1.5.2",
     "networkx>=3.6.1",
     "langgraph>=1.0.10",
     "structlog>=24.1.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pywebview>=5.0",
 ]
 
 [project.scripts]

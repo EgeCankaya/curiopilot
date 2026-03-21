@@ -1,7 +1,8 @@
-"""Deep‑reader agent — fetches article body, extracts text, and produces an ArticleSummary via the 14B model."""
+"""Deep-reader agent -- fetches article body, extracts text, and produces an ArticleSummary via the 14B model."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ from pydantic import ValidationError
 from curiopilot.config import AppConfig
 from curiopilot.llm.ollama import OllamaClient
 from curiopilot.models import ArticleSummary, ProgressCallback, ScoredArticle
+from curiopilot.utils.fetch import create_stealth_context, fetch_article_html
 from curiopilot.utils.text import chunk_text, estimate_tokens, extract_body_text
 
 log = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ def _build_summary_prompt(
     url: str,
 ) -> str:
     return (
-        "You are a research‑summarization assistant. Read the article text below "
+        "You are a research\u2011summarization assistant. Read the article text below "
         "and produce a structured JSON summary.\n\n"
         f"Title: {title}\n"
         f"Source: {source_name}\n"
@@ -73,7 +75,7 @@ def _build_merge_prompt(
         f"[Part {i}] {s}" for i, s in enumerate(chunk_summaries, 1)
     )
     return (
-        "You are a research‑summarization assistant. Below are summaries of "
+        "You are a research\u2011summarization assistant. Below are summaries of "
         "different sections of the same article. Merge them into a single "
         "structured JSON summary.\n\n"
         f"Title: {title}\n"
@@ -98,49 +100,6 @@ def _build_merge_prompt(
     )
 
 
-async def _fetch_article_html(
-    url: str, timeout_ms: int = 30_000, *, browser: object | None = None
-) -> str | None:
-    """Use Playwright to load a URL and return the page HTML.
-
-    If *browser* is provided, opens a new page on that browser instance
-    instead of launching a fresh Chromium process.
-    """
-    try:
-        if browser is not None:
-            page = await browser.new_page()
-            try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-                return await page.content()
-            finally:
-                await page.close()
-        else:
-            async with async_playwright() as pw:
-                br = await pw.chromium.launch(headless=True)
-                page = await br.new_page()
-                await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-                html = await page.content()
-                await br.close()
-                return html
-    except Exception:
-        log.warning("Playwright failed to load %s", url, exc_info=True)
-        return None
-
-
-async def _fetch_article_httpx(url: str) -> str | None:
-    """Fallback: fetch via plain HTTP for simple pages or APIs."""
-    import httpx
-
-    try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "CurioPilot/0.1"})
-            resp.raise_for_status()
-            return resp.text
-    except Exception:
-        log.warning("httpx fallback failed for %s", url, exc_info=True)
-        return None
-
-
 async def _summarize_text(
     text: str,
     title: str,
@@ -157,7 +116,6 @@ async def _summarize_text(
         prompt = _build_summary_prompt(text, title, source_name, url)
         return await _call_summary(prompt, model, client)
 
-    # Map phase: summarize each chunk independently
     chunks = chunk_text(text, max_tokens)
     log.info("Article too long (%d tokens est.), splitting into %d chunks", estimate_tokens(text), len(chunks))
 
@@ -172,7 +130,6 @@ async def _summarize_text(
         log.warning("All chunk summaries empty for %s", url)
         return None
 
-    # Reduce phase: merge chunk summaries into one structured summary
     merge_prompt = _build_merge_prompt(chunk_summaries, title, source_name, url)
     return await _call_summary(merge_prompt, model, client)
 
@@ -204,36 +161,52 @@ async def read_and_summarize(
     *,
     progress_callback: ProgressCallback | None = None,
 ) -> list[ArticleSummary]:
-    """Fetch, extract, and summarize each article. Returns summaries in order.
+    """Fetch, extract, and summarize each article.
 
-    Shares a single Playwright browser instance across all fetches to avoid
-    the overhead of launching Chromium per article.
+    Uses a stealth Playwright context shared across fetches, with httpx and
+    trafilatura as fallback tiers. Adds random delays between fetches and
+    rotates the browser context when a bot challenge is detected.
     """
+    import random
+
     summaries: list[ArticleSummary] = []
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
+        context = await create_stealth_context(browser)
         try:
             for idx, sa in enumerate(scored_articles, 1):
                 article = sa.article
                 log.info("[%d/%d] Reading: %s", idx, len(scored_articles), article.title[:70])
 
-                html = await _fetch_article_html(article.url, browser=browser)
+                html = await fetch_article_html(article.url, context=context)
+
                 if html is None:
-                    html = await _fetch_article_httpx(article.url)
+                    log.info("Primary fetch failed, rotating context and retrying: %s", article.url)
+                    await context.close()
+                    context = await create_stealth_context(browser)
+                    await asyncio.sleep(random.uniform(3.0, 6.0))
+                    html = await fetch_article_html(article.url, context=context)
+
                 if html is None:
                     log.warning("Could not fetch article body, skipping: %s", article.url)
+                    if progress_callback and callable(progress_callback):
+                        progress_callback(idx, len(scored_articles))
                     continue
 
-                body = extract_body_text(html)
+                body = extract_body_text(html, url=article.url)
                 if len(body) < 100:
                     log.warning("Extracted body too short (%d chars), skipping: %s", len(body), article.url)
+                    if progress_callback and callable(progress_callback):
+                        progress_callback(idx, len(scored_articles))
                     continue
 
                 summary = await _summarize_text(
                     body, article.title, article.source_name, article.url, config, client
                 )
                 if summary:
+                    summary.body_content = body
+                    summary.body_content_type = "plaintext"
                     summaries.append(summary)
                     log.info(
                         "  -> Summary: %d concepts, depth=%d",
@@ -245,7 +218,13 @@ async def read_and_summarize(
 
                 if progress_callback and callable(progress_callback):
                     progress_callback(idx, len(scored_articles))
+
+                if idx < len(scored_articles):
+                    delay = random.uniform(2.0, 5.0)
+                    log.debug("Waiting %.1fs before next fetch", delay)
+                    await asyncio.sleep(delay)
         finally:
+            await context.close()
             await browser.close()
 
     return summaries

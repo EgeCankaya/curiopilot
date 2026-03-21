@@ -868,5 +868,147 @@ def open_cmd(
     )
 
 
+# ── migrate ──────────────────────────────────────────────────────────────────
+
+
+@app.command()
+def migrate(
+    config: Annotated[
+        Path, typer.Option("--config", "-c", help="Path to config.yaml")
+    ] = Path("config.yaml"),
+) -> None:
+    """Migrate existing briefing Markdown files into the articles database."""
+    asyncio.run(_migrate_impl(config))
+
+
+async def _migrate_impl(config_path: Path) -> None:
+    from curiopilot.config import load_config
+    from curiopilot.migrate import migrate_briefings
+    from curiopilot.storage.article_store import ArticleStore
+
+    config = load_config(config_path)
+    db_dir = Path(config.paths.database_dir)
+
+    article_store = ArticleStore(db_dir / "curiopilot.db")
+    await article_store.open()
+
+    try:
+        migrated = await migrate_briefings(config.paths.briefings_dir, article_store)
+    finally:
+        await article_store.close()
+
+    if migrated:
+        total = sum(migrated.values())
+        console.print(f"[green]Migrated {len(migrated)} briefing(s), {total} article(s) total.[/green]")
+        for date_str, count in sorted(migrated.items()):
+            console.print(f"  {date_str}: {count} articles")
+    else:
+        console.print("[yellow]No new briefings to migrate (all dates already in DB).[/yellow]")
+
+
+# ── refetch ──────────────────────────────────────────────────────────────────
+
+
+@app.command()
+def refetch(
+    config: Annotated[
+        Path, typer.Option("--config", "-c", help="Path to config.yaml")
+    ] = Path("config.yaml"),
+) -> None:
+    """Re-fetch and re-extract article bodies that are empty or corrupted."""
+    asyncio.run(_refetch_impl(config))
+
+
+async def _refetch_impl(config_path: Path) -> None:
+    from curiopilot.config import load_config
+    from curiopilot.migrate import refetch_articles
+    from curiopilot.storage.article_store import ArticleStore
+
+    config = load_config(config_path)
+    db_dir = Path(config.paths.database_dir)
+
+    article_store = ArticleStore(db_dir / "curiopilot.db")
+    await article_store.open()
+
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        console=console,
+    )
+
+    task_id = None
+
+    def _progress_callback(current: int, total: int) -> None:
+        nonlocal task_id
+        if task_id is None:
+            task_id = progress.add_task("Re-fetching articles", total=total)
+        progress.update(task_id, completed=current, total=total)
+
+    try:
+        with progress:
+            stats = await refetch_articles(
+                article_store,
+                progress_callback=_progress_callback,
+            )
+    finally:
+        await article_store.close()
+
+    console.print()
+    console.print(f"[green]Re-fetch complete:[/green]")
+    console.print(f"  Updated:  {stats['updated']}")
+    console.print(f"  Skipped:  {stats['skipped']}")
+    console.print(f"  Failed:   {stats['failed']}")
+
+
+# ── serve ────────────────────────────────────────────────────────────────────
+
+
+@app.command()
+def serve(
+    config: Annotated[
+        Path, typer.Option("--config", "-c", help="Path to config.yaml")
+    ] = Path("config.yaml"),
+    port: Annotated[
+        int, typer.Option("--port", "-p", help="Port to listen on")
+    ] = 19231,
+    host: Annotated[
+        str, typer.Option("--host", help="Host to bind to")
+    ] = "127.0.0.1",
+) -> None:
+    """Start the CurioPilot API server (headless mode)."""
+    import uvicorn
+
+    from curiopilot.api.app import create_app
+
+    app_instance = create_app(config_path=str(config))
+    console.print(f"[bold]Starting CurioPilot API server on {host}:{port}[/bold]")
+    uvicorn.run(app_instance, host=host, port=port, log_level="info")
+
+
+# ── app (desktop) ────────────────────────────────────────────────────────────
+
+
+@app.command(name="app")
+def desktop(
+    config: Annotated[
+        Path, typer.Option("--config", "-c", help="Path to config.yaml")
+    ] = Path("config.yaml"),
+    port: Annotated[
+        int, typer.Option("--port", "-p", help="Port to listen on")
+    ] = 19231,
+    debug: Annotated[
+        bool, typer.Option("--debug", help="Enable debug mode")
+    ] = False,
+) -> None:
+    """Launch CurioPilot as a desktop application."""
+    from curiopilot.desktop import launch_app
+
+    console.print("[bold]Launching CurioPilot desktop app…[/bold]")
+    launch_app(config_path=config, port=port, debug=debug)
+
+
 if __name__ == "__main__":
     app()

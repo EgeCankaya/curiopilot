@@ -13,7 +13,7 @@ from curiopilot.scrapers.base import BaseScraper
 
 log = logging.getLogger(__name__)
 
-_USER_AGENT = "CurioPilot/0.1 (knowledge-discovery bot)"
+from curiopilot.utils.fetch import random_user_agent
 
 
 @register_scraper("reddit_json")
@@ -30,7 +30,7 @@ class RedditJsonScraper(BaseScraper):
         delay = self.source.request_delay_seconds
 
         url = self._build_url()
-        headers = {"User-Agent": _USER_AGENT}
+        headers = {"User-Agent": random_user_agent()}
 
         articles: list[ArticleEntry] = []
         after: str | None = None

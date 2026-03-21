@@ -14,7 +14,7 @@ from curiopilot.scrapers.base import BaseScraper
 
 log = logging.getLogger(__name__)
 
-_USER_AGENT = "CurioPilot/0.1 (knowledge-discovery bot)"
+from curiopilot.utils.fetch import random_user_agent
 
 
 @register_scraper("generic_scrape")
@@ -38,7 +38,7 @@ class GenericScrapeScraper(BaseScraper):
 
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             try:
-                resp = await client.get(url, headers={"User-Agent": _USER_AGENT})
+                resp = await client.get(url, headers={"User-Agent": random_user_agent()})
                 resp.raise_for_status()
             except httpx.HTTPError:
                 log.warning("Generic scraper request failed for %s", url, exc_info=True)

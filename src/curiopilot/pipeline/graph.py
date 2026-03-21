@@ -22,6 +22,7 @@ from curiopilot.config import AppConfig, load_config
 from curiopilot.llm.ollama import OllamaClient
 from curiopilot.models import ArticleEntry, ArticleSummary, ProgressCallback, RelevanceScore, ScoredArticle
 from curiopilot.scrapers import get_scraper
+from curiopilot.storage.article_store import ArticleStore
 from curiopilot.storage.knowledge_graph import GraphUpdateStats, KnowledgeGraph
 from curiopilot.storage.url_store import URLStore
 from curiopilot.storage.vector_store import VectorStore
@@ -43,6 +44,7 @@ class PipelineState(TypedDict, total=False):
     config: AppConfig
     client: OllamaClient
     store: URLStore
+    article_store: ArticleStore | None
     db_dir: Path
     dry_run: bool
     no_filter: bool
@@ -438,6 +440,21 @@ async def briefing_node(state: PipelineState) -> dict:
     )
     md = generate_briefing(ctx)
     path = save_briefing(md, config.paths.briefings_dir)
+
+    article_store = state.get("article_store")
+    if article_store is not None:
+        summaries = state.get("summaries", [])
+        novelty_results = state.get("novelty_results", [])
+        relevance_by_url = state.get("relevance_by_url", {})
+        today_str = (ctx.briefing_date or __import__("datetime").date.today()).isoformat()
+        try:
+            count = await article_store.insert_articles(
+                today_str, summaries, novelty_results, relevance_by_url,
+            )
+            log.info("Inserted %d article(s) into article store for %s", count, today_str)
+        except Exception:
+            log.warning("Failed to insert articles into article store", exc_info=True)
+
     _notify(cb, "briefing", 1, 1)
 
     return {"briefing_markdown": md, "briefing_path": path}

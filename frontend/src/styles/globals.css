@@ -1,0 +1,89 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: dark;
+}
+
+@theme {
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #1C1C1E;
+  --color-bg-tertiary: #2C2C2E;
+  --color-bg-elevated: #2C2C2E;
+  --color-bg-hover: #3A3A3C;
+  --color-bg-active: #48484A;
+  --color-border: #38383A;
+  --color-border-subtle: #2C2C2E;
+  --color-text-primary: #F5F5F7;
+  --color-text-secondary: #A1A1A6;
+  --color-text-muted: #6E6E73;
+  --color-accent: #0A84FF;
+  --color-accent-hover: #409CFF;
+  --color-success: #30D158;
+  --color-warning: #FFD60A;
+  --color-danger: #FF453A;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.01em;
+}
+
+.prose {
+  --tw-prose-body: var(--color-text-secondary);
+  --tw-prose-headings: var(--color-text-primary);
+  --tw-prose-links: var(--color-accent);
+  --tw-prose-bold: var(--color-text-primary);
+  --tw-prose-code: var(--color-accent);
+  --tw-prose-pre-bg: var(--color-bg-tertiary);
+  --tw-prose-pre-code: var(--color-text-secondary);
+  --tw-prose-quotes: var(--color-text-secondary);
+  --tw-prose-quote-borders: var(--color-border);
+  --tw-prose-hr: var(--color-border);
+}
+
+.prose pre {
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+}
+
+.prose code:not(pre code) {
+  padding: 0.15em 0.35em;
+  border-radius: 0.375rem;
+  background-color: var(--color-bg-tertiary);
+  font-size: 0.9em;
+}
+
+.prose blockquote {
+  border-left-width: 3px;
+  font-style: normal;
+}
+
+.prose img {
+  border-radius: 0.75rem;
+}
+
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  scroll-margin-top: 4rem;
+  letter-spacing: -0.01em;
+}

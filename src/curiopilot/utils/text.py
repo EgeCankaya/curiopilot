@@ -5,27 +5,45 @@ from __future__ import annotations
 import logging
 import re
 
+import trafilatura
+
 log = logging.getLogger(__name__)
 
+_UNWANTED_ELEMENTS_RE = re.compile(
+    r"<(style|script|noscript|svg|head)[\s>].*?</\1>",
+    re.DOTALL | re.IGNORECASE,
+)
 _STRIP_TAGS_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\n{3,}")
 
 APPROX_CHARS_PER_TOKEN = 4
 
 
-def extract_body_text(html: str) -> str:
+def extract_body_text(html: str, url: str | None = None) -> str:
     """Extract the main article body from raw HTML.
 
-    Uses a hierarchy of heuristics:
-    1. Look for ``<article>`` tag content
-    2. Fall back to ``<main>`` tag
-    3. Fall back to the largest ``<div>`` by text length
-    4. Last resort: strip all tags from full HTML
-
-    This is intentionally simple; a production system would use a library like
-    ``readability-lxml``, but we avoid extra native deps for now.
+    Uses trafilatura for production-grade extraction, falling back to
+    regex heuristics if trafilatura returns nothing usable.
     """
-    from html.parser import HTMLParser
+    result = trafilatura.extract(
+        html,
+        url=url,
+        include_comments=False,
+        include_tables=True,
+        favor_precision=True,
+        deduplicate=True,
+    )
+    if result and len(result) >= 100:
+        log.debug("trafilatura extracted %d chars", len(result))
+        return result
+
+    log.debug("trafilatura returned insufficient content, falling back to regex")
+    return _regex_extract_body_text(html)
+
+
+def _regex_extract_body_text(html: str) -> str:
+    """Fallback regex-based extraction for edge cases."""
+    html = _remove_unwanted_elements(html)
 
     best = _extract_tag_content(html, "article")
     if not best or len(best) < 200:
@@ -35,9 +53,11 @@ def extract_body_text(html: str) -> str:
     if not best or len(best) < 100:
         best = _strip_tags(html)
 
-    text = _clean_text(best)
-    log.debug("Extracted %d chars of body text", len(text))
-    return text
+    return _clean_text(best)
+
+
+def _remove_unwanted_elements(html: str) -> str:
+    return _UNWANTED_ELEMENTS_RE.sub("", html)
 
 
 def _extract_tag_content(html: str, tag: str) -> str | None:
