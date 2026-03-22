@@ -66,6 +66,21 @@ export function searchArticles(query: string): Promise<SearchResult[]> {
   return fetchJSON(`${BASE}/search?q=${encodeURIComponent(query)}`)
 }
 
+export async function openReaderWindow(
+  url: string,
+  title?: string,
+): Promise<{ ok: boolean; opened: boolean }> {
+  try {
+    return await fetchJSON(`${BASE}/ui/open-reader`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, title: title ?? null }),
+    })
+  } catch {
+    return { ok: false, opened: false }
+  }
+}
+
 export function connectRunStream(
   onEvent: (event: RunStreamEvent) => void,
   onError?: (err: Event) => void,

@@ -1,6 +1,7 @@
 import type { ArticleFull } from '@/types'
 import ArticleBody from './ArticleBody'
-import { ExternalLink, Loader2 } from 'lucide-react'
+import { AppWindow, ExternalLink, Loader2 } from 'lucide-react'
+import { openReaderWindow } from '@/lib/api'
 
 interface ArticleViewProps {
   article: ArticleFull | null
@@ -57,15 +58,30 @@ export default function ArticleView({ article, loading, error }: ArticleViewProp
               ↩ Deepening
             </span>
           )}
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
-          >
-            <span>Original</span>
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          <div className="ml-auto flex items-center gap-3">
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await openReaderWindow(article.url, article.title)
+                if (!res.opened) {
+                  window.open(article.url, '_blank', 'noopener,noreferrer')
+                }
+              }}
+              className="flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
+            >
+              <AppWindow className="h-3.5 w-3.5" />
+              <span>App window</span>
+            </button>
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
+            >
+              <span>Original</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
         </div>
 
         {article.novelty_explanation && (

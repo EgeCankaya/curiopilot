@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,17 @@ from curiopilot.storage.url_store import URLStore
 log = logging.getLogger(__name__)
 
 
-def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
+@runtime_checkable
+class UiBridge(Protocol):
+    """Minimal interface for desktop UI actions."""
+
+    def open_reader(self, url: str, title: str | None = None) -> bool: ...
+
+
+def create_app(
+    config_path: str | Path = "config.yaml",
+    ui_bridge: UiBridge | None = None,
+) -> FastAPI:
     """Build and return a fully configured FastAPI application."""
     config = load_config(config_path)
 
@@ -37,6 +48,7 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
         app.state.config_path = config_path
         app.state.article_store = article_store
         app.state.url_store = url_store
+        app.state.ui_bridge = ui_bridge
 
         log.info("CurioPilot API started (db: %s)", db_path)
         yield
@@ -72,6 +84,7 @@ def _register_routes(app: FastAPI) -> None:
     from curiopilot.api.routes.pipeline import router as pipeline_router
     from curiopilot.api.routes.search import router as search_router
     from curiopilot.api.routes.stats import router as stats_router
+    from curiopilot.api.routes.ui import router as ui_router
 
     app.include_router(briefings_router, prefix="/api")
     app.include_router(articles_router, prefix="/api")
@@ -79,6 +92,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(stats_router, prefix="/api")
     app.include_router(search_router, prefix="/api")
     app.include_router(pipeline_router, prefix="/api")
+    app.include_router(ui_router, prefix="/api")
 
 
 def _mount_frontend(app: FastAPI) -> None:
