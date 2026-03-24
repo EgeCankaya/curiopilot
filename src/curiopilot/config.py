@@ -16,6 +16,12 @@ KNOWN_SCRAPERS = {
     "arxiv_feed",
     "huggingface_scrape",
     "generic_scrape",
+    "lobsters_feed",
+    "github_trending",
+    "substack_feed",
+    "podcast_rss",
+    "bluesky_feed",
+    "mastodon_feed",
 }
 
 
@@ -35,6 +41,7 @@ class SourceConfig(BaseModel):
     query: str | None = None
     max_articles: int = Field(default=30, ge=1)
     request_delay_seconds: float = Field(default=3.0, ge=0)
+    api_key: str | None = None
 
     @field_validator("scraper")
     @classmethod
@@ -56,6 +63,17 @@ class OllamaConfig(BaseModel):
     base_url: str = "http://localhost:11434"
     timeout_seconds: int = Field(default=120, ge=1)
     max_retries: int = Field(default=3, ge=0)
+    # Per-article timeouts (seconds)
+    filter_timeout_seconds: int = Field(default=30, ge=1)
+    summarize_timeout_seconds: int = Field(default=60, ge=1)
+    fetch_timeout_seconds: int = Field(default=30, ge=1)
+    embed_timeout_seconds: int = Field(default=30, ge=1)
+    # Circuit breaker
+    circuit_breaker_threshold: int = Field(default=5, ge=1)
+    circuit_breaker_reset_seconds: float = Field(default=60.0, ge=0)
+    # Concurrency
+    llm_concurrency: int = Field(default=2, ge=1)
+    fetch_concurrency: int = Field(default=3, ge=1)
 
 
 class ScoringConfig(BaseModel):
@@ -78,6 +96,7 @@ class PathsConfig(BaseModel):
     briefings_dir: str = "./briefings"
     database_dir: str = "./data"
     graph_path: str = "./data/knowledge_graph.json"
+    obsidian_vault_path: str = ""
 
     def resolve(self, root: Path) -> PathsConfig:
         """Return a copy with paths resolved against *root*."""

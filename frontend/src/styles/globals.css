@@ -3,11 +3,16 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
+.dark {
   color-scheme: dark;
 }
 
+.light {
+  color-scheme: light;
+}
+
 @theme {
+  /* Dark mode defaults (overridden by .light class below) */
   --color-bg-primary: #000000;
   --color-bg-secondary: #1C1C1E;
   --color-bg-tertiary: #2C2C2E;
@@ -24,6 +29,25 @@
   --color-success: #30D158;
   --color-warning: #FFD60A;
   --color-danger: #FF453A;
+}
+
+.light {
+  --color-bg-primary: #FFFFFF;
+  --color-bg-secondary: #F5F5F7;
+  --color-bg-tertiary: #E8E8ED;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-hover: #E8E8ED;
+  --color-bg-active: #D1D1D6;
+  --color-border: #D1D1D6;
+  --color-border-subtle: #E8E8ED;
+  --color-text-primary: #1D1D1F;
+  --color-text-secondary: #6E6E73;
+  --color-text-muted: #A1A1A6;
+  --color-accent: #0071E3;
+  --color-accent-hover: #0077ED;
+  --color-success: #248A3D;
+  --color-warning: #B25000;
+  --color-danger: #D70015;
 }
 
 body {

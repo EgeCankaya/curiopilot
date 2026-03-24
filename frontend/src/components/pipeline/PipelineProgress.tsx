@@ -16,7 +16,7 @@ export default function PipelineProgress({ state, onDismiss }: PipelineProgressP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xl">
-      <div className="w-full max-w-md rounded-3xl bg-bg-elevated p-6 shadow-2xl shadow-black/40">
+      <div className="w-full max-w-md rounded-3xl bg-bg-elevated p-6 shadow-2xl shadow-border-subtle/40">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-text-primary">

@@ -10,20 +10,34 @@ import ArticleWebView from '@/components/articles/ArticleWebView'
 import AnalysisSection from '@/components/articles/AnalysisSection'
 import FeedbackControls from '@/components/feedback/FeedbackControls'
 import PipelineProgress from '@/components/pipeline/PipelineProgress'
+import SearchBar from '@/components/search/SearchBar'
+import StatsDashboard from '@/components/stats/StatsDashboard'
+import ObsidianBridgePage from '@/components/graph/ObsidianBridgePage'
+import SettingsPage from '@/components/settings/SettingsPage'
+import ComparisonPage from '@/components/compare/ComparisonPage'
+import { useBookmarks } from '@/hooks/useBookmarks'
 import { useBriefings } from '@/hooks/useBriefings'
 import { useArticles } from '@/hooks/useArticles'
 import { useArticle } from '@/hooks/useArticle'
 import { useFeedback } from '@/hooks/useFeedback'
 import { usePipelineRun } from '@/hooks/usePipelineRun'
+import { useTheme } from '@/hooks/useTheme'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { useKeyboardNav } from '@/hooks/useKeyboardNav'
 import { cn } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 
 type ArticleViewMode = 'web' | 'analysis'
+export type AppView = 'briefings' | 'stats' | 'graph' | 'settings' | 'compare'
 
 export default function App() {
+  const [activeView, setActiveView] = useState<AppView>('briefings')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<number | null>(null)
-  const [viewMode, setViewMode] = useState<ArticleViewMode>('web')
+  const [viewMode, setViewMode] = useState<ArticleViewMode>('analysis')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const { theme, setTheme } = useTheme()
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const { briefings, loading: briefingsLoading, refresh: refreshBriefings } = useBriefings()
   const { articles, detail, loading: articlesLoading } = useArticles(selectedDate)
@@ -31,6 +45,19 @@ export default function App() {
   const { feedback, updateLocal: updateFeedbackLocal } = useFeedback(selectedDate)
   const pipeline = usePipelineRun(() => {
     refreshBriefings()
+  })
+  const bookmarksHook = useBookmarks()
+
+  useKeyboardNav({
+    articles,
+    selectedArticle,
+    onSelectArticle: setSelectedArticle,
+    selectedDate,
+    viewMode,
+    onSetViewMode: setViewMode,
+    feedback,
+    onUpdateFeedback: updateFeedbackLocal,
+    onTriggerRun: pipeline.start,
   })
 
   // Auto-select latest briefing date on first load
@@ -41,21 +68,69 @@ export default function App() {
   }, [briefings, selectedDate])
 
   useEffect(() => {
-    setViewMode('web')
+    setViewMode('analysis')
   }, [selectedArticle])
+
+  // Close sidebar on mobile when not needed
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false)
+    else setSidebarOpen(true)
+  }, [isMobile])
 
   const handleSelectDate = (date: string) => {
     setSelectedDate(date)
     setSelectedArticle(null)
+    if (isMobile) setSidebarOpen(false)
   }
 
-  return (
-    <div className="dark flex h-screen flex-col bg-bg-primary text-text-primary">
-      <Header onRunClick={pipeline.start} isRunning={pipeline.isRunning} />
-      <PipelineProgress state={pipeline} onDismiss={pipeline.dismiss} />
+  const handleSelectArticle = (num: number) => {
+    setSelectedArticle(num)
+    if (isMobile) setSidebarOpen(false)
+  }
 
-      <div className="flex min-h-0 flex-1">
+  const handleSearchNavigate = (date: string, articleNumber: number) => {
+    setActiveView('briefings')
+    setSelectedDate(date)
+    setSelectedArticle(articleNumber)
+  }
+
+  const renderMainContent = () => {
+    // Full-page views (no sidebar)
+    if (activeView === 'stats') {
+      return (
+        <ContentPanel className="overflow-y-auto">
+          <StatsDashboard />
+        </ContentPanel>
+      )
+    }
+
+    if (activeView === 'graph') {
+      return <ObsidianBridgePage />
+    }
+
+    if (activeView === 'settings') {
+      return (
+        <ContentPanel className="overflow-y-auto">
+          <SettingsPage />
+        </ContentPanel>
+      )
+    }
+
+    if (activeView === 'compare') {
+      return (
+        <ContentPanel className="overflow-y-auto">
+          <ComparisonPage />
+        </ContentPanel>
+      )
+    }
+
+    // Default: briefings view with sidebar
+    return (
+      <>
         <Sidebar
+          open={sidebarOpen}
+          isMobile={isMobile}
+          onClose={() => setSidebarOpen(false)}
           topSlot={
             <BriefingList
               briefings={briefings}
@@ -68,7 +143,7 @@ export default function App() {
             <ArticleList
               articles={articles}
               selectedArticle={selectedArticle}
-              onSelectArticle={setSelectedArticle}
+              onSelectArticle={handleSelectArticle}
               feedback={feedback}
               loading={articlesLoading}
             />
@@ -82,12 +157,16 @@ export default function App() {
         )}
         {selectedDate && !selectedArticle && detail && (
           <ContentPanel>
-            <BriefingOverview detail={detail} />
+            <BriefingOverview
+              detail={detail}
+              onRerun={pipeline.rerun}
+              isRunning={pipeline.isRunning}
+            />
           </ContentPanel>
         )}
         {selectedDate && selectedArticle && (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex shrink-0 gap-1 border-b border-white/[0.06] bg-bg-primary px-6 pt-3 md:px-8">
+            <div className="flex shrink-0 gap-1 border-b border-border bg-bg-primary px-6 pt-3 md:px-8">
               <button
                 type="button"
                 onClick={() => setViewMode('web')}
@@ -134,6 +213,8 @@ export default function App() {
                   article={article}
                   loading={articleLoading}
                   error={articleError}
+                  bookmarked={selectedDate && selectedArticle ? bookmarksHook.isBookmarked(selectedDate, selectedArticle) : false}
+                  onToggleBookmark={selectedDate && selectedArticle ? () => bookmarksHook.toggle(selectedDate, selectedArticle) : undefined}
                 />
                 {article && (
                   <>
@@ -154,6 +235,28 @@ export default function App() {
             )}
           </div>
         )}
+      </>
+    )
+  }
+
+  return (
+    <div className="flex h-screen flex-col bg-bg-primary text-text-primary">
+      <Header
+        onRunClick={pipeline.start}
+        isRunning={pipeline.isRunning}
+        theme={theme}
+        onThemeChange={setTheme}
+        isMobile={isMobile}
+        onToggleSidebar={() => setSidebarOpen((o) => !o)}
+        activeView={activeView}
+        onViewChange={setActiveView}
+      >
+        <SearchBar onNavigate={handleSearchNavigate} />
+      </Header>
+      <PipelineProgress state={pipeline} onDismiss={pipeline.dismiss} />
+
+      <div className="flex min-h-0 flex-1">
+        {renderMainContent()}
       </div>
     </div>
   )

@@ -37,6 +37,7 @@ class RunResult:
     briefing_path: Path | None = None
     briefing_markdown: str = ""
     duration_seconds: float = 0.0
+    dlq_failures: list[dict] = field(default_factory=list)
 
 
 async def run_pipeline(
@@ -47,11 +48,17 @@ async def run_pipeline(
     source_names: list[str] | None = None,
     verbose: bool = False,
     progress_callback: ProgressCallback | None = None,
+    incremental: bool = False,
+    resume_run_id: str | None = None,
 ) -> RunResult:
     """Execute the CurioPilot pipeline via LangGraph StateGraph.
 
     The graph follows the PRD Section 6.3 design with conditional edges
     for dry-run (stop after dedup) and empty-result short-circuits.
+
+    Args:
+        incremental: Only scrape sources updated since last successful run.
+        resume_run_id: Resume a previous run from its last checkpoint.
     """
     from curiopilot.logging_config import setup_logging
 
@@ -76,9 +83,32 @@ async def run_pipeline(
     await article_store.open()
 
     try:
-        from curiopilot.pipeline.graph import build_pipeline_graph
+        from curiopilot.pipeline.checkpoint import CheckpointStore
+        from curiopilot.pipeline.graph import PHASE_ORDER, build_pipeline_graph
 
-        graph = build_pipeline_graph()
+        # Set up checkpoint store
+        checkpoint_dir = db_dir / "checkpoints"
+        checkpoint_store: CheckpointStore | None = None
+        start_from: str | None = None
+
+        if resume_run_id:
+            checkpoint_store = CheckpointStore(checkpoint_dir, resume_run_id)
+            last_phase = await checkpoint_store.get_last_completed_phase()
+            if last_phase:
+                idx = PHASE_ORDER.index(last_phase)
+                if idx + 1 < len(PHASE_ORDER):
+                    start_from = PHASE_ORDER[idx + 1]
+                    log.info("Resuming run %s from phase '%s' (after '%s')", resume_run_id, start_from, last_phase)
+                else:
+                    log.info("Run %s already completed all phases", resume_run_id)
+                    return result
+            else:
+                log.warning("No checkpoints found for run %s, starting fresh", resume_run_id)
+            result.run_id = resume_run_id
+        else:
+            checkpoint_store = CheckpointStore(checkpoint_dir, result.run_id)
+
+        graph = build_pipeline_graph(start_from=start_from)
         compiled = graph.compile()
 
         initial_state = {
@@ -94,7 +124,17 @@ async def run_pipeline(
             "t0": t0,
             "run_id": result.run_id,
             "started_at": result.started_at,
+            "incremental": incremental,
+            "checkpoint_store": checkpoint_store,
+            "dlq_failures": [],
         }
+
+        # If resuming, merge checkpoint data into initial state
+        if resume_run_id and checkpoint_store:
+            resumed_data = await checkpoint_store.load_all()
+            if resumed_data:
+                initial_state.update(resumed_data)
+                log.info("Loaded checkpoint data: %s", list(resumed_data.keys()))
 
         final_state = await compiled.ainvoke(initial_state)
 
@@ -109,6 +149,7 @@ async def run_pipeline(
         result.graph_stats = final_state.get("graph_stats", GraphUpdateStats())
         result.briefing_path = final_state.get("briefing_path")
         result.briefing_markdown = final_state.get("briefing_markdown", "")
+        result.dlq_failures = final_state.get("dlq_failures", [])
 
     finally:
         try:

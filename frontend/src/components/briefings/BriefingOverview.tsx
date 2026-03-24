@@ -1,14 +1,17 @@
+import { useState } from 'react'
 import type { BriefingDetail } from '@/types'
-import { BarChart3, BookOpen, Clock, Filter, Lightbulb, Network, Compass } from 'lucide-react'
+import { BarChart3, BookOpen, Clock, Filter, Lightbulb, Network, Compass, RefreshCw } from 'lucide-react'
 
 interface BriefingOverviewProps {
   detail: BriefingDetail
+  onRerun?: (date: string) => void
+  isRunning?: boolean
 }
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number | null }) {
   if (value == null) return null
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-bg-elevated p-4 shadow-md shadow-black/20">
+    <div className="flex items-center gap-3 rounded-2xl bg-bg-elevated p-4 shadow-md shadow-border-subtle/30">
       <div className="text-accent">{icon}</div>
       <div>
         <div className="text-lg font-semibold text-text-primary">{value}</div>
@@ -23,20 +26,69 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-export default function BriefingOverview({ detail }: BriefingOverviewProps) {
+export default function BriefingOverview({ detail, onRerun, isRunning }: BriefingOverviewProps) {
   const graphStats = detail.graph_stats as Record<string, unknown> | null
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const isToday = detail.briefing_date === todayStr
+
+  const handleRerunClick = () => setConfirmOpen(true)
+  const handleConfirm = () => {
+    setConfirmOpen(false)
+    onRerun?.(detail.briefing_date)
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-text-primary">
-          {formatDate(detail.briefing_date)}
-        </h2>
-        <p className="mt-1 text-sm text-text-secondary">
-          Daily briefing with {detail.articles.length} articles
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-text-primary">
+            {formatDate(detail.briefing_date)}
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Daily briefing with {detail.articles.length} articles
+          </p>
+        </div>
+        {isToday && onRerun && (
+          <button
+            type="button"
+            onClick={handleRerunClick}
+            disabled={isRunning}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Re-run
+          </button>
+        )}
       </div>
+
+      {/* Confirm dialog */}
+      {confirmOpen && (
+        <div className="rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
+          <p className="font-medium text-text-primary">Re-run today's briefing from scratch?</p>
+          <p className="mt-1 text-text-secondary">
+            This will delete today's articles and re-scrape all sources. The pipeline will run again from the beginning.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={handleConfirm}
+              className="rounded-lg bg-warning px-3 py-1.5 text-sm font-medium text-bg-primary transition-opacity hover:opacity-90"
+            >
+              Yes, re-run
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(false)}
+              className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-text-secondary"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3">
@@ -89,7 +141,7 @@ export default function BriefingOverview({ detail }: BriefingOverviewProps) {
             <Network className="h-4 w-4 text-accent" />
             Knowledge Graph Update
           </h3>
-          <div className="rounded-2xl bg-bg-elevated p-4 text-sm text-text-secondary shadow-md shadow-black/20">
+          <div className="rounded-2xl bg-bg-elevated p-4 text-sm text-text-secondary shadow-md shadow-border-subtle/30">
             {graphStats.nodes_before != null && (
               <p>Nodes: {String(graphStats.nodes_before)} → {String(graphStats.nodes_after)}</p>
             )}

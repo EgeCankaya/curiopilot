@@ -2,6 +2,7 @@ export interface BriefingListItem {
   briefing_date: string
   article_count: number
   has_feedback: boolean
+  read_count: number
 }
 
 export interface ArticleListItem {

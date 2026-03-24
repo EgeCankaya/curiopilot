@@ -12,7 +12,7 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
-    <section className="mt-6 rounded-2xl border border-white/[0.06] bg-bg-elevated shadow-md shadow-black/20">
+    <section className="mt-6 rounded-2xl border border-border bg-bg-elevated shadow-md shadow-border-subtle/30">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center justify-between px-5 py-3.5 text-left text-sm font-medium text-text-secondary transition-all duration-200 hover:text-text-primary"
@@ -28,7 +28,7 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
       </button>
 
       {expanded && (
-        <div className="space-y-4 border-t border-white/[0.06] px-5 pb-5 pt-4">
+        <div className="space-y-4 border-t border-border px-5 pb-5 pt-4">
           {/* Summary */}
           <div>
             <h4 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-muted">

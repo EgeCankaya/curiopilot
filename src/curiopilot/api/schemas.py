@@ -9,6 +9,7 @@ class BriefingListItem(BaseModel):
     briefing_date: str
     article_count: int
     has_feedback: bool = False
+    read_count: int = 0
 
 
 class ArticleListItem(BaseModel):
@@ -64,6 +65,12 @@ class FeedbackRequest(BaseModel):
     quality: str | None = None
 
 
+class RunRequest(BaseModel):
+    incremental: bool = False
+    resume_run_id: str | None = None
+    rerun_date: str | None = None
+
+
 class RunResponse(BaseModel):
     run_id: str
     status: str
@@ -73,6 +80,24 @@ class RunStatus(BaseModel):
     status: str
     run_id: str | None = None
     error: str | None = None
+
+
+class DLQItem(BaseModel):
+    url: str
+    title: str | None = None
+    source_name: str | None = None
+    phase: str
+    error_type: str
+    error_message: str | None = None
+    failed_at: str
+    run_id: str | None = None
+    retry_count: int = 0
+
+
+class DLQStats(BaseModel):
+    total: int
+    by_phase: dict[str, int] = {}
+    by_error_type: dict[str, int] = {}
 
 
 class StatsResponse(BaseModel):
@@ -94,3 +119,49 @@ class SearchResult(BaseModel):
     summary: str
     relevance_score: int
     novelty_score: float
+
+
+class ObsidianStatusResponse(BaseModel):
+    vault_path: str
+    configured: bool
+    total_concepts: int
+    total_briefings: int
+    category_summary: dict[str, int]
+    last_exported: str | None = None
+
+
+class ObsidianExportResponse(BaseModel):
+    exported_concepts: int
+    exported_briefings: int
+    vault_path: str
+
+
+class GraphNode(BaseModel):
+    id: str
+    label: str
+    familiarity: float = 0.0
+    encounter_count: int = 0
+    degree: int = 0
+
+
+class GraphEdge(BaseModel):
+    source: str
+    target: str
+    relationship_type: str = "co_occurrence"
+
+
+class GraphResponse(BaseModel):
+    nodes: list[GraphNode] = []
+    edges: list[GraphEdge] = []
+    total_nodes: int = 0
+    total_edges: int = 0
+
+
+class ImportedSource(BaseModel):
+    name: str
+    url: str
+
+
+class OPMLImportResponse(BaseModel):
+    added: list[ImportedSource] = []
+    skipped_duplicates: list[ImportedSource] = []

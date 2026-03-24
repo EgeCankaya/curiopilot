@@ -34,7 +34,7 @@ export default function FeedbackControls({
   }
 
   return (
-    <div className="mt-6 space-y-4 rounded-2xl border border-white/[0.06] bg-bg-elevated p-5 shadow-md shadow-black/20">
+    <div className="mt-6 space-y-4 rounded-2xl border border-border bg-bg-elevated p-5 shadow-md shadow-border-subtle/30">
       <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
         Your Feedback
       </h4>
@@ -133,7 +133,7 @@ export default function FeedbackControls({
       </div>
 
       {/* Read Original */}
-      <div className="border-t border-white/[0.06] pt-3">
+      <div className="border-t border-border pt-3">
         <a
           href={articleUrl}
           target="_blank"

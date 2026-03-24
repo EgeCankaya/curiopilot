@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import httpx
@@ -20,6 +21,18 @@ from curiopilot.utils.text import chunk_text, estimate_tokens, extract_body_text
 log = logging.getLogger(__name__)
 
 _MAX_PARSE_RETRIES = 2
+
+
+@dataclass
+class ReaderFailure:
+    """Record of a single article that failed during reading."""
+
+    url: str
+    title: str
+    source_name: str
+    phase: str  # 'fetch' or 'summarize'
+    error_type: str
+    error_message: str
 
 
 def _build_summary_prompt(
@@ -154,77 +167,177 @@ async def _call_summary(
     return None
 
 
+async def _process_one_article(
+    sa: ScoredArticle,
+    context_holder: dict,
+    context_lock: asyncio.Lock,
+    browser: object,
+    fetch_sem: asyncio.Semaphore,
+    llm_sem: asyncio.Semaphore,
+    config: AppConfig,
+    client: OllamaClient,
+    breaker: object | None,
+) -> ArticleSummary | ReaderFailure:
+    """Fetch and summarize a single article with bounded concurrency."""
+    import random
+
+    from curiopilot.llm.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+
+    article = sa.article
+
+    # ── Fetch phase (bounded by fetch_sem) ──
+    html = None
+    async with fetch_sem:
+        try:
+            html = await asyncio.wait_for(
+                fetch_article_html(article.url, context=context_holder["ctx"]),
+                timeout=config.ollama.fetch_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            log.warning("Fetch timeout for %s", article.url)
+
+        if html is None:
+            # Rotate context and retry
+            async with context_lock:
+                try:
+                    await context_holder["ctx"].close()
+                    context_holder["ctx"] = await create_stealth_context(browser)
+                except Exception:
+                    pass
+            await asyncio.sleep(random.uniform(3.0, 6.0))
+            try:
+                html = await asyncio.wait_for(
+                    fetch_article_html(article.url, context=context_holder["ctx"]),
+                    timeout=config.ollama.fetch_timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                log.warning("Fetch retry timeout for %s", article.url)
+
+        # Add polite delay
+        await asyncio.sleep(random.uniform(2.0, 5.0))
+
+    if html is None:
+        return ReaderFailure(
+            url=article.url, title=article.title, source_name=article.source_name,
+            phase="fetch", error_type="http_error",
+            error_message="Could not fetch article body after retries",
+        )
+
+    body = extract_body_text(html, url=article.url)
+    if len(body) < 100:
+        return ReaderFailure(
+            url=article.url, title=article.title, source_name=article.source_name,
+            phase="fetch", error_type="parse_error",
+            error_message=f"Extracted body too short ({len(body)} chars)",
+        )
+
+    # ── Summarize phase (bounded by llm_sem) ──
+    if isinstance(breaker, CircuitBreaker):
+        try:
+            breaker.check()
+        except CircuitBreakerOpen:
+            return ReaderFailure(
+                url=article.url, title=article.title, source_name=article.source_name,
+                phase="summarize", error_type="circuit_breaker",
+                error_message="Circuit breaker open — Ollama unresponsive",
+            )
+
+    async with llm_sem:
+        try:
+            summary = await asyncio.wait_for(
+                _summarize_text(body, article.title, article.source_name, article.url, config, client),
+                timeout=config.ollama.summarize_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            log.warning("Summarize timeout for %s", article.url)
+            if isinstance(breaker, CircuitBreaker):
+                breaker.record_failure()
+            return ReaderFailure(
+                url=article.url, title=article.title, source_name=article.source_name,
+                phase="summarize", error_type="timeout",
+                error_message=f"Timed out after {config.ollama.summarize_timeout_seconds}s",
+            )
+
+    if summary is None:
+        if isinstance(breaker, CircuitBreaker):
+            breaker.record_failure()
+        return ReaderFailure(
+            url=article.url, title=article.title, source_name=article.source_name,
+            phase="summarize", error_type="parse_error",
+            error_message="Failed to produce summary after retries",
+        )
+
+    if isinstance(breaker, CircuitBreaker):
+        breaker.record_success()
+
+    summary.body_content = body
+    summary.body_content_type = "plaintext"
+    log.info("  -> Summary: %d concepts, depth=%d", len(summary.key_concepts), summary.technical_depth)
+    return summary
+
+
 async def read_and_summarize(
     scored_articles: list[ScoredArticle],
     config: AppConfig,
     client: OllamaClient,
     *,
     progress_callback: ProgressCallback | None = None,
+    breaker: object | None = None,
+    fetch_concurrency: int = 1,
+    llm_concurrency: int = 1,
+    failures: list[ReaderFailure] | None = None,
 ) -> list[ArticleSummary]:
-    """Fetch, extract, and summarize each article.
+    """Fetch, extract, and summarize articles with optional concurrency.
 
     Uses a stealth Playwright context shared across fetches, with httpx and
     trafilatura as fallback tiers. Adds random delays between fetches and
     rotates the browser context when a bot challenge is detected.
     """
-    import random
-
     summaries: list[ArticleSummary] = []
+    _failures = failures if failures is not None else []
+
+    fetch_sem = asyncio.Semaphore(fetch_concurrency)
+    llm_sem = asyncio.Semaphore(llm_concurrency)
+    context_lock = asyncio.Lock()
+
+    completed = 0
+    progress_lock = asyncio.Lock()
+
+    async def _process_and_report(sa: ScoredArticle) -> ArticleSummary | ReaderFailure:
+        nonlocal completed
+        log.info("Reading: %s", sa.article.title[:70])
+        result = await _process_one_article(
+            sa, context_holder, context_lock, browser,
+            fetch_sem, llm_sem, config, client, breaker,
+        )
+        async with progress_lock:
+            completed += 1
+            if progress_callback and callable(progress_callback):
+                progress_callback(completed, len(scored_articles))
+        return result
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         context = await create_stealth_context(browser)
+        context_holder = {"ctx": context}
         try:
-            for idx, sa in enumerate(scored_articles, 1):
-                article = sa.article
-                log.info("[%d/%d] Reading: %s", idx, len(scored_articles), article.title[:70])
+            results = await asyncio.gather(
+                *[_process_and_report(sa) for sa in scored_articles],
+                return_exceptions=True,
+            )
 
-                html = await fetch_article_html(article.url, context=context)
-
-                if html is None:
-                    log.info("Primary fetch failed, rotating context and retrying: %s", article.url)
-                    await context.close()
-                    context = await create_stealth_context(browser)
-                    await asyncio.sleep(random.uniform(3.0, 6.0))
-                    html = await fetch_article_html(article.url, context=context)
-
-                if html is None:
-                    log.warning("Could not fetch article body, skipping: %s", article.url)
-                    if progress_callback and callable(progress_callback):
-                        progress_callback(idx, len(scored_articles))
-                    continue
-
-                body = extract_body_text(html, url=article.url)
-                if len(body) < 100:
-                    log.warning("Extracted body too short (%d chars), skipping: %s", len(body), article.url)
-                    if progress_callback and callable(progress_callback):
-                        progress_callback(idx, len(scored_articles))
-                    continue
-
-                summary = await _summarize_text(
-                    body, article.title, article.source_name, article.url, config, client
-                )
-                if summary:
-                    summary.body_content = body
-                    summary.body_content_type = "plaintext"
-                    summaries.append(summary)
-                    log.info(
-                        "  -> Summary: %d concepts, depth=%d",
-                        len(summary.key_concepts),
-                        summary.technical_depth,
-                    )
-                else:
-                    log.warning("  -> Failed to produce summary for: %s", article.url)
-
-                if progress_callback and callable(progress_callback):
-                    progress_callback(idx, len(scored_articles))
-
-                if idx < len(scored_articles):
-                    delay = random.uniform(2.0, 5.0)
-                    log.debug("Waiting %.1fs before next fetch", delay)
-                    await asyncio.sleep(delay)
+            for r in results:
+                if isinstance(r, ArticleSummary):
+                    summaries.append(r)
+                elif isinstance(r, ReaderFailure):
+                    _failures.append(r)
+                elif isinstance(r, BaseException):
+                    log.error("Unexpected exception in reader gather: %s", r)
         finally:
-            await context.close()
+            try:
+                await context_holder["ctx"].close()
+            except Exception:
+                pass
             await browser.close()
 
     return summaries

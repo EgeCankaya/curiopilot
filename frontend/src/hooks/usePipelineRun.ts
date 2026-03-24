@@ -42,7 +42,7 @@ export function usePipelineRun(onComplete?: () => void) {
   })
   const esRef = useRef<EventSource | null>(null)
 
-  const start = useCallback(async () => {
+  const _run = useCallback(async (rerunDate?: string) => {
     setState({
       isRunning: true,
       showModal: true,
@@ -101,7 +101,7 @@ export function usePipelineRun(onComplete?: () => void) {
     esRef.current = es
 
     try {
-      await triggerRun()
+      await triggerRun(rerunDate)
     } catch (e) {
       es.close()
       const msg = e instanceof Error ? e.message : 'Failed to start pipeline'
@@ -116,9 +116,12 @@ export function usePipelineRun(onComplete?: () => void) {
     }
   }, [onComplete])
 
+  const start = useCallback(() => _run(), [_run])
+  const rerun = useCallback((date: string) => _run(date), [_run])
+
   const dismiss = useCallback(() => {
     setState((s) => ({ ...s, showModal: false }))
   }, [])
 
-  return { ...state, start, dismiss }
+  return { ...state, start, rerun, dismiss }
 }

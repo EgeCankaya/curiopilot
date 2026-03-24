@@ -21,21 +21,22 @@ class OpenReaderRequest(BaseModel):
 class OpenReaderResponse(BaseModel):
     ok: bool
     opened: bool
+    reason: str
 
 
 @router.post("/ui/open-reader", response_model=OpenReaderResponse)
 async def open_reader(body: OpenReaderRequest, request: Request):
     parsed = urlparse(body.url)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        return OpenReaderResponse(ok=False, opened=False)
+        return OpenReaderResponse(ok=False, opened=False, reason="invalid_url")
 
     bridge = getattr(request.app.state, "ui_bridge", None)
     if bridge is None:
-        return OpenReaderResponse(ok=True, opened=False)
+        return OpenReaderResponse(ok=True, opened=False, reason="bridge_unavailable")
 
     try:
-        opened = bool(bridge.open_reader(body.url, body.title))
-        return OpenReaderResponse(ok=True, opened=opened)
+        success, reason = bridge.open_reader(body.url, body.title)
+        return OpenReaderResponse(ok=True, opened=success, reason=reason)
     except Exception:
         log.exception("ui_bridge.open_reader failed")
-        return OpenReaderResponse(ok=True, opened=False)
+        return OpenReaderResponse(ok=True, opened=False, reason="reader_open_failed")

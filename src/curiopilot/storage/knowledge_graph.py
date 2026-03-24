@@ -12,6 +12,8 @@ from pathlib import Path
 
 import networkx as nx
 
+from curiopilot.storage.taxonomy import assign_category
+
 log = logging.getLogger(__name__)
 
 
@@ -49,6 +51,10 @@ class KnowledgeGraph:
         if self._path.is_file():
             data = json.loads(self._path.read_text(encoding="utf-8"))
             self._graph = nx.node_link_graph(data)
+            # Retroactively categorize nodes that pre-date taxonomy
+            for node in self._graph.nodes:
+                if "category" not in self._graph.nodes[node]:
+                    self._graph.nodes[node]["category"] = assign_category(node)
             log.info(
                 "Knowledge graph loaded: %d nodes, %d edges",
                 self._graph.number_of_nodes(),
@@ -114,6 +120,7 @@ class KnowledgeGraph:
                     last_seen=now,
                     encounter_count=1,
                     familiarity=0.1,
+                    category=assign_category(concept),
                 )
                 stats.nodes_added += 1
                 stats.new_concept_names.append(concept)
@@ -373,6 +380,14 @@ class KnowledgeGraph:
             return ("", 0)
         top = max(self._graph.nodes, key=lambda n: self._graph.degree(n))
         return (top, self._graph.degree(top))
+
+    def category_summary(self) -> dict[str, int]:
+        """Return {category: node_count} for all categories."""
+        counts: dict[str, int] = {}
+        for node in self._graph.nodes:
+            cat = self._graph.nodes[node].get("category", "Uncategorized")
+            counts[cat] = counts.get(cat, 0) + 1
+        return counts
 
     # ── Helpers ───────────────────────────────────────────────────────────
 

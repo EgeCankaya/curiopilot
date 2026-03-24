@@ -6,11 +6,12 @@ import asyncio
 import json
 import logging
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from curiopilot.api.schemas import RunResponse, RunStatus
+from curiopilot.api.schemas import DLQItem, DLQStats, RunRequest, RunResponse, RunStatus
 
 router = APIRouter(tags=["pipeline"])
 log = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ def _broadcast_event(event_type: str, data: dict) -> None:
 
 
 @router.post("/run", response_model=RunResponse)
-async def trigger_run(request: Request):
+async def trigger_run(request: Request, body: RunRequest | None = None):
     if _run_lock.locked():
         return JSONResponse(
             status_code=409,
@@ -42,16 +43,60 @@ async def trigger_run(request: Request):
     _run_state["error"] = None
 
     config_path = request.app.state.config_path
-    asyncio.create_task(_execute_pipeline(config_path, run_id))
+    incremental = body.incremental if body else False
+    resume_run_id = body.resume_run_id if body else None
+    rerun_date = body.rerun_date if body else None
+
+    asyncio.create_task(_execute_pipeline(
+        config_path, run_id,
+        incremental=incremental,
+        resume_run_id=resume_run_id,
+        rerun_date=rerun_date,
+    ))
 
     return RunResponse(run_id=run_id, status="started")
 
 
-async def _execute_pipeline(config_path: str, run_id: str) -> None:
+async def _execute_pipeline(
+    config_path: str,
+    run_id: str,
+    *,
+    incremental: bool = False,
+    resume_run_id: str | None = None,
+    rerun_date: str | None = None,
+) -> None:
+    from curiopilot.config import load_config
     from curiopilot.pipeline.run import run_pipeline
+    from curiopilot.storage.article_store import ArticleStore
+    from curiopilot.storage.url_store import URLStore
 
     async with _run_lock:
         try:
+            if rerun_date:
+                config = load_config(config_path)
+                db_path = Path(config.paths.database_dir) / "curiopilot.db"
+
+                article_store = ArticleStore(db_path)
+                await article_store.open()
+                try:
+                    deleted = await article_store.delete_articles_by_date(rerun_date)
+                    log.info("Re-run: deleted %d article(s) for %s", deleted, rerun_date)
+                finally:
+                    await article_store.close()
+
+                url_store = URLStore(db_path)
+                await url_store.open()
+                try:
+                    await url_store.clear_date_data(rerun_date)
+                    log.info("Re-run: cleared visited URLs and feedback for %s", rerun_date)
+                finally:
+                    await url_store.close()
+
+                briefing_file = Path(config.paths.briefings_dir) / f"{rerun_date}.md"
+                if briefing_file.exists():
+                    briefing_file.unlink()
+                    log.info("Re-run: deleted briefing file %s", briefing_file)
+
             def _progress_cb(phase: str, current: int, total: int) -> None:
                 _broadcast_event("progress", {
                     "phase": phase,
@@ -63,6 +108,8 @@ async def _execute_pipeline(config_path: str, run_id: str) -> None:
             result = await run_pipeline(
                 config_path=config_path,
                 progress_callback=_progress_cb,
+                incremental=incremental,
+                resume_run_id=resume_run_id,
             )
 
             _run_state["status"] = "completed"
@@ -71,6 +118,7 @@ async def _execute_pipeline(config_path: str, run_id: str) -> None:
                 "articles_scanned": result.articles_scanned,
                 "articles_briefed": len(result.summaries),
                 "duration": round(result.duration_seconds, 1),
+                "dlq_failures": len(result.dlq_failures),
             })
 
         except Exception as exc:
@@ -124,3 +172,74 @@ async def run_stream(request: Request):
             "Connection": "keep-alive",
         },
     )
+
+
+# ── Dead Letter Queue endpoints ─────────────────────────────────────────────
+
+
+@router.get("/dlq", response_model=list[DLQItem])
+async def list_dlq(request: Request):
+    """List pending items in the dead letter queue."""
+    from curiopilot.config import load_config
+    from curiopilot.storage.url_store import URLStore
+
+    config = load_config(request.app.state.config_path)
+    db_path = Path(config.paths.database_dir) / "curiopilot.db"
+    store = URLStore(db_path)
+    await store.open()
+    try:
+        items = await store.get_dlq_pending()
+        return [DLQItem(**item) for item in items]
+    finally:
+        await store.close()
+
+
+@router.get("/dlq/stats", response_model=DLQStats)
+async def dlq_stats(request: Request):
+    """Get aggregate statistics about the dead letter queue."""
+    from curiopilot.config import load_config
+    from curiopilot.storage.url_store import URLStore
+
+    config = load_config(request.app.state.config_path)
+    db_path = Path(config.paths.database_dir) / "curiopilot.db"
+    store = URLStore(db_path)
+    await store.open()
+    try:
+        stats = await store.dlq_stats()
+        return DLQStats(**stats)
+    finally:
+        await store.close()
+
+
+@router.delete("/dlq/{url:path}")
+async def remove_dlq_item(url: str, request: Request):
+    """Remove a specific URL from the dead letter queue."""
+    from curiopilot.config import load_config
+    from curiopilot.storage.url_store import URLStore
+
+    config = load_config(request.app.state.config_path)
+    db_path = Path(config.paths.database_dir) / "curiopilot.db"
+    store = URLStore(db_path)
+    await store.open()
+    try:
+        await store.remove_from_dlq(url)
+        return {"status": "removed", "url": url}
+    finally:
+        await store.close()
+
+
+@router.delete("/dlq")
+async def clear_dlq(request: Request):
+    """Clear all items from the dead letter queue."""
+    from curiopilot.config import load_config
+    from curiopilot.storage.url_store import URLStore
+
+    config = load_config(request.app.state.config_path)
+    db_path = Path(config.paths.database_dir) / "curiopilot.db"
+    store = URLStore(db_path)
+    await store.open()
+    try:
+        await store.clear_dlq()
+        return {"status": "cleared"}
+    finally:
+        await store.close()

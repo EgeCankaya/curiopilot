@@ -23,11 +23,14 @@ async def list_briefings(
     dates = await article_store.list_briefing_dates()
     result: list[BriefingListItem] = []
     for d in dates:
-        has_fb = await url_store.is_feedback_processed(d["briefing_date"])
+        date_str = d["briefing_date"]
+        has_fb = await url_store.is_feedback_processed(date_str)
+        read_count = await url_store.get_read_count(date_str)
         result.append(BriefingListItem(
-            briefing_date=d["briefing_date"],
+            briefing_date=date_str,
             article_count=d["article_count"],
             has_feedback=has_fb,
+            read_count=read_count,
         ))
     return result
 

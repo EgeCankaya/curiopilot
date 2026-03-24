@@ -25,10 +25,16 @@ def get_scraper(source: "SourceConfig") -> "BaseScraper":
     """Return an instantiated scraper for the given source config."""
     # Lazy-import concrete scrapers so they register themselves.
     import curiopilot.scrapers.arxiv_feed  # noqa: F401
+    import curiopilot.scrapers.bluesky_feed  # noqa: F401
     import curiopilot.scrapers.generic_scrape  # noqa: F401
+    import curiopilot.scrapers.github_trending  # noqa: F401
     import curiopilot.scrapers.hackernews_api  # noqa: F401
     import curiopilot.scrapers.huggingface_scrape  # noqa: F401
+    import curiopilot.scrapers.lobsters_feed  # noqa: F401
+    import curiopilot.scrapers.mastodon_feed  # noqa: F401
+    import curiopilot.scrapers.podcast_rss  # noqa: F401
     import curiopilot.scrapers.reddit_json  # noqa: F401
+    import curiopilot.scrapers.substack_feed  # noqa: F401
 
     cls = _REGISTRY.get(source.scraper)
     if cls is None:

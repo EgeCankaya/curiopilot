@@ -63,6 +63,12 @@ def run(
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable debug logging")
     ] = False,
+    incremental: Annotated[
+        bool, typer.Option("--incremental", help="Only scrape sources updated since last successful run")
+    ] = False,
+    resume: Annotated[
+        Optional[str], typer.Option("--resume", help="Resume a previous run by its run_id")
+    ] = None,
 ) -> None:
     """Run the CurioPilot discovery pipeline."""
     from curiopilot.display import print_run_summary
@@ -95,6 +101,8 @@ def run(
                 source_names=source,
                 verbose=verbose,
                 progress_callback=_progress_callback,
+                incremental=incremental,
+                resume_run_id=resume,
             )
         )
 
@@ -291,10 +299,20 @@ def export_cmd(
         Path, typer.Option("--config", "-c", help="Path to config.yaml")
     ] = Path("config.yaml"),
     output: Annotated[
-        Path, typer.Option("--output", "-o", help="Output directory for the Obsidian vault")
-    ] = Path("./obsidian-vault"),
+        Path, typer.Option("--output", "-o", help="Output directory (Obsidian vault root or subfolder)")
+    ] = Path("./obsidian-export"),
 ) -> None:
-    """Export knowledge graph and briefings as an Obsidian vault."""
+    """Export knowledge graph and briefings as Obsidian-compatible Markdown.
+
+    Each concept becomes its own note with [[wikilinks]] to related concepts,
+    so Obsidian's built-in graph view visualises your knowledge graph natively.
+
+    Briefings are copied with YAML frontmatter and key concepts linked.
+
+    Example — export directly into your vault:
+
+        curiopilot export --output "F:\\Coding\\Obisidan\\CurioPilot"
+    """
     from curiopilot.config import load_config
     from curiopilot.export.obsidian import export_obsidian_vault
     from curiopilot.storage.knowledge_graph import KnowledgeGraph
@@ -308,15 +326,27 @@ def export_cmd(
         console.print("[yellow]Knowledge graph is empty. Run the pipeline first.[/yellow]")
         return
 
+    briefing_count = len(list(Path(config_obj.paths.briefings_dir).glob("*.md")))
+
     count = export_obsidian_vault(
         kg=kg,
         briefings_dir=config_obj.paths.briefings_dir,
         output_dir=output,
     )
 
+    out_abs = output.resolve()
     console.print()
-    console.print(f"[green]Exported {count} concept files to {output}[/green]")
-    console.print(f"[dim]Open {output} as a vault in Obsidian to explore.[/dim]")
+    console.print(f"[green]Export complete:[/green] {out_abs}")
+    console.print(f"  Concept notes : {count}")
+    console.print(f"  Briefings     : {briefing_count}")
+    console.print()
+    console.print("[dim]Vault structure:[/dim]")
+    console.print(f"  [dim]{out_abs / 'Knowledge Graph.md'}[/dim]")
+    console.print(f"  [dim]{out_abs / 'Concepts'}/  ({count} notes)[/dim]")
+    console.print(f"  [dim]{out_abs / 'Briefings'}/  ({briefing_count} notes)[/dim]")
+    console.print()
+    console.print("[dim]Open the folder as a vault in Obsidian.[/dim]")
+    console.print("[dim]Obsidian's graph view will show your concept network automatically.[/dim]")
 
 
 # ── add-source ───────────────────────────────────────────────────────────────

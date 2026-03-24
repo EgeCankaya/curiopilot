@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { ArticleFull } from '@/types'
 import ArticleBody from './ArticleBody'
+import BookmarkButton from '@/components/bookmarks/BookmarkButton'
 import { AppWindow, ExternalLink, Loader2 } from 'lucide-react'
 import { openReaderWindow } from '@/lib/api'
 
@@ -7,6 +9,8 @@ interface ArticleViewProps {
   article: ArticleFull | null
   loading: boolean
   error: string | null
+  bookmarked?: boolean
+  onToggleBookmark?: () => void
 }
 
 function NoveltyBadge({ score }: { score: number }) {
@@ -21,7 +25,7 @@ function NoveltyBadge({ score }: { score: number }) {
   )
 }
 
-export default function ArticleView({ article, loading, error }: ArticleViewProps) {
+export default function ArticleView({ article, loading, error, bookmarked, onToggleBookmark }: ArticleViewProps) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-12 text-text-muted">
@@ -43,9 +47,14 @@ export default function ArticleView({ article, loading, error }: ArticleViewProp
     <article className="space-y-6">
       {/* Header */}
       <header className="space-y-3">
-        <h2 className="text-2xl font-bold leading-tight text-text-primary">
-          {article.title}
-        </h2>
+        <div className="flex items-start gap-2">
+          <h2 className="flex-1 text-2xl font-bold leading-tight text-text-primary">
+            {article.title}
+          </h2>
+          {onToggleBookmark && (
+            <BookmarkButton bookmarked={bookmarked ?? false} onToggle={onToggleBookmark} />
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="rounded-lg bg-bg-tertiary px-2 py-0.5 text-text-muted">
@@ -58,30 +67,7 @@ export default function ArticleView({ article, loading, error }: ArticleViewProp
               ↩ Deepening
             </span>
           )}
-          <div className="ml-auto flex items-center gap-3">
-            <button
-              type="button"
-              onClick={async () => {
-                const res = await openReaderWindow(article.url, article.title)
-                if (!res.opened) {
-                  window.open(article.url, '_blank', 'noopener,noreferrer')
-                }
-              }}
-              className="flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
-            >
-              <AppWindow className="h-3.5 w-3.5" />
-              <span>App window</span>
-            </button>
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
-            >
-              <span>Original</span>
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          </div>
+          <AppWindowAction url={article.url} title={article.title} />
         </div>
 
         {article.novelty_explanation && (
@@ -102,6 +88,47 @@ export default function ArticleView({ article, loading, error }: ArticleViewProp
         <FallbackBody article={article} />
       )}
     </article>
+  )
+}
+
+function AppWindowAction({ url, title }: { url: string; title: string }) {
+  const [hint, setHint] = useState<string | null>(null)
+
+  const handleClick = async () => {
+    setHint(null)
+    const res = await openReaderWindow(url, title)
+    if (res.opened) {
+      setHint('Opened in reader window')
+    } else if (res.reason === 'bridge_unavailable') {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } else {
+      setHint(`Could not open reader (${res.reason}) — try opening externally`)
+    }
+  }
+
+  return (
+    <div className="ml-auto flex items-center gap-3">
+      <button
+        type="button"
+        onClick={handleClick}
+        className="flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
+      >
+        <AppWindow className="h-3.5 w-3.5" />
+        <span>App window</span>
+      </button>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
+      >
+        <span>Original</span>
+        <ExternalLink className="h-3.5 w-3.5" />
+      </a>
+      {hint && (
+        <span className="text-xs text-text-muted">{hint}</span>
+      )}
+    </div>
   )
 }
 

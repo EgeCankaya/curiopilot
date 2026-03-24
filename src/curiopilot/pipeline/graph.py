@@ -16,9 +16,10 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from curiopilot.agents.filter_agent import score_articles
-from curiopilot.agents.novelty_engine import NoveltyResult, score_novelty
+from curiopilot.agents.filter_agent import FilterFailure, score_articles
+from curiopilot.agents.novelty_engine import NoveltyFailure, NoveltyResult, score_novelty
 from curiopilot.config import AppConfig, load_config
+from curiopilot.llm.circuit_breaker import CircuitBreaker
 from curiopilot.llm.ollama import OllamaClient
 from curiopilot.models import ArticleEntry, ArticleSummary, ProgressCallback, RelevanceScore, ScoredArticle
 from curiopilot.scrapers import get_scraper
@@ -51,6 +52,10 @@ class PipelineState(TypedDict, total=False):
     source_names: list[str] | None
     progress_callback: ProgressCallback | None
     t0: float
+    incremental: bool
+
+    # Checkpoint store (optional)
+    checkpoint_store: Any  # CheckpointStore | None
 
     # Discover phase
     all_articles: list[ArticleEntry]
@@ -83,6 +88,9 @@ class PipelineState(TypedDict, total=False):
     # Bookkeeping
     run_id: str
     started_at: str
+
+    # DLQ tracking (accumulated across phases)
+    dlq_failures: list[dict]
 
 
 # ── Node functions ───────────────────────────────────────────────────────────
@@ -153,8 +161,10 @@ async def ingest_feedback_node(state: PipelineState) -> dict:
 async def discover_node(state: PipelineState) -> dict:
     """Crawl all configured sources and collect article entries."""
     config = state["config"]
+    store = state["store"]
     cb = state.get("progress_callback")
     source_names = state.get("source_names")
+    incremental = state.get("incremental", False)
 
     _notify(cb, "discover", 0, 1)
     all_articles: list[ArticleEntry] = []
@@ -169,16 +179,32 @@ async def discover_node(state: PipelineState) -> dict:
                 source_names, available,
             )
 
+    # Incremental: skip sources already scraped since last successful run
+    skip_sources: set[str] = set()
+    if incremental:
+        last_run = await store.last_successful_run()
+        if last_run and last_run.get("completed_at"):
+            skip_sources = await store.sources_scraped_since(last_run["completed_at"])
+            if skip_sources:
+                log.info("Incremental: skipping %d already-scraped source(s): %s", len(skip_sources), skip_sources)
+
     import asyncio
 
     import httpx
 
     for i, source in enumerate(sources):
+        if source.name in skip_sources:
+            log.info("Incremental: skipping source '%s'", source.name)
+            _notify(cb, "discover", i + 1, len(sources))
+            continue
+
         try:
             scraper = get_scraper(source)
             articles = await scraper.extract_articles()
             log.info("Source '%s': fetched %d articles", source.name, len(articles))
             all_articles.extend(articles)
+            # Record source run for incremental tracking
+            await store.record_source_run(source.name, len(articles))
         except (httpx.HTTPError, asyncio.TimeoutError) as exc:
             log.warning("Source '%s' failed due to network error: %s", source.name, exc)
         except Exception:
@@ -220,6 +246,9 @@ async def filter_node(state: PipelineState) -> dict:
     new_articles = state.get("new_articles", [])
     no_filter = state.get("no_filter", False)
     cb = state.get("progress_callback")
+    run_id = state.get("run_id")
+
+    dlq_failures = list(state.get("dlq_failures", []))
 
     if no_filter:
         passed = [
@@ -233,7 +262,34 @@ async def filter_node(state: PipelineState) -> dict:
         await store.mark_batch_visited(rows)
     else:
         _notify(cb, "filter", 0, len(new_articles))
-        scored = await score_articles(new_articles, config, client, keep_alive="5m")
+
+        # Create circuit breaker for this phase
+        breaker = CircuitBreaker(
+            failure_threshold=config.ollama.circuit_breaker_threshold,
+            reset_timeout=config.ollama.circuit_breaker_reset_seconds,
+        )
+        failures: list[FilterFailure] = []
+
+        scored = await score_articles(
+            new_articles, config, client,
+            keep_alive="5m",
+            breaker=breaker,
+            concurrency=config.ollama.llm_concurrency,
+            failures=failures,
+        )
+
+        # Record failures in DLQ
+        for f in failures:
+            dlq_failures.append({
+                "url": f.url, "title": f.title, "source_name": f.source_name,
+                "phase": "filter", "error_type": f.error_type,
+                "error_message": f.error_message, "run_id": run_id,
+            })
+            await store.add_to_dlq(
+                f.url, f.title, f.source_name,
+                "filter", f.error_type, f.error_message, run_id,
+            )
+
         threshold = config.scoring.relevance_threshold
 
         passed = []
@@ -273,7 +329,7 @@ async def filter_node(state: PipelineState) -> dict:
     passed = passed[:max_items]
     log.info("Filter: %d passed (capped to %d)", len(passed), max_items)
 
-    return {"passed": passed}
+    return {"passed": passed, "dlq_failures": dlq_failures}
 
 
 async def swap_to_reader_node(state: PipelineState) -> dict:
@@ -293,33 +349,66 @@ async def swap_to_reader_node(state: PipelineState) -> dict:
 
 async def deep_read_node(state: PipelineState) -> dict:
     """Fetch, extract, and summarize each article using the 14B model."""
-    from curiopilot.agents.reader_agent import read_and_summarize
+    from curiopilot.agents.reader_agent import ReaderFailure, read_and_summarize
 
     config = state["config"]
     client = state["client"]
+    store = state["store"]
     passed = state.get("passed", [])
     cb = state.get("progress_callback")
+    run_id = state.get("run_id")
+
+    dlq_failures = list(state.get("dlq_failures", []))
+
+    # Create circuit breaker for this phase
+    breaker = CircuitBreaker(
+        failure_threshold=config.ollama.circuit_breaker_threshold,
+        reset_timeout=config.ollama.circuit_breaker_reset_seconds,
+    )
+    failures: list[ReaderFailure] = []
 
     def _reader_progress(current: int, total: int) -> None:
         _notify(cb, "read", current, total)
 
     _notify(cb, "read", 0, len(passed))
     summaries = await read_and_summarize(
-        passed, config, client, progress_callback=_reader_progress,
+        passed, config, client,
+        progress_callback=_reader_progress,
+        breaker=breaker,
+        fetch_concurrency=config.ollama.fetch_concurrency,
+        llm_concurrency=config.ollama.llm_concurrency,
+        failures=failures,
     )
+
+    # Record failures in DLQ
+    for f in failures:
+        dlq_failures.append({
+            "url": f.url, "title": f.title, "source_name": f.source_name,
+            "phase": f.phase, "error_type": f.error_type,
+            "error_message": f.error_message, "run_id": run_id,
+        })
+        await store.add_to_dlq(
+            f.url, f.title, f.source_name,
+            f.phase, f.error_type, f.error_message, run_id,
+        )
+
     log.info("Deep read: %d summaries produced from %d articles", len(summaries), len(passed))
 
-    return {"summaries": summaries}
+    return {"summaries": summaries, "dlq_failures": dlq_failures}
 
 
 async def novelty_node(state: PipelineState) -> dict:
     """Swap to embedding model, score novelty, and filter near-duplicates."""
     config = state["config"]
     client = state["client"]
+    store = state["store"]
     db_dir = state["db_dir"]
     passed = state.get("passed", [])
     summaries = state.get("summaries", [])
     cb = state.get("progress_callback")
+    run_id = state.get("run_id")
+
+    dlq_failures = list(state.get("dlq_failures", []))
 
     _notify(cb, "model_swap_embed", 0, 1)
     await client.swap_model(
@@ -343,28 +432,69 @@ async def novelty_node(state: PipelineState) -> dict:
 
     relevance_by_url = {sa.article.url: sa.relevance.score for sa in passed}
 
+    # Create circuit breaker for this phase
+    breaker = CircuitBreaker(
+        failure_threshold=config.ollama.circuit_breaker_threshold,
+        reset_timeout=config.ollama.circuit_breaker_reset_seconds,
+    )
+    novelty_failures: list[NoveltyFailure] = []
+
     def _novelty_progress(current: int, total: int) -> None:
         _notify(cb, "novelty", current, total)
 
     _notify(cb, "novelty", 0, len(summaries))
     novelty_results = await score_novelty(
         summaries, relevance_by_url, config, client,
-        vector_store, kg, progress_callback=_novelty_progress,
+        vector_store, kg,
+        progress_callback=_novelty_progress,
+        breaker=breaker,
+        concurrency=config.ollama.llm_concurrency,
+        failures=novelty_failures,
     )
+
+    # Record failures in DLQ
+    for f in novelty_failures:
+        dlq_failures.append({
+            "url": f.url, "title": f.title, "source_name": f.source_name,
+            "phase": "novelty", "error_type": f.error_type,
+            "error_message": f.error_message, "run_id": run_id,
+        })
+        await store.add_to_dlq(
+            f.url, f.title, f.source_name,
+            "novelty", f.error_type, f.error_message, run_id,
+        )
 
     dup_urls = {nr.url for nr in novelty_results if nr.is_near_duplicate}
     if dup_urls:
         log.info("Filtered %d near-duplicate article(s)", len(dup_urls))
 
     score_by_url = {nr.url: nr.final_score for nr in novelty_results}
-    summaries = [s for s in summaries if s.url not in dup_urls]
-    summaries.sort(key=lambda s: score_by_url.get(s.url, 0), reverse=True)
+    non_dup = [s for s in summaries if s.url not in dup_urls]
+    non_dup.sort(key=lambda s: score_by_url.get(s.url, 0), reverse=True)
+
+    min_items = config.scoring.min_briefing_items
+    if len(non_dup) < min_items:
+        # Backfill from near-duplicates (best-scoring first) to meet minimum
+        dup_summaries = [s for s in summaries if s.url in dup_urls]
+        dup_summaries.sort(key=lambda s: score_by_url.get(s.url, 0), reverse=True)
+        backfill = dup_summaries[: min_items - len(non_dup)]
+        if backfill:
+            log.info(
+                "Novelty: only %d non-duplicate article(s), backfilling %d near-duplicate(s) "
+                "to reach minimum %d",
+                len(non_dup), len(backfill), min_items,
+            )
+        non_dup.extend(backfill)
+        non_dup.sort(key=lambda s: score_by_url.get(s.url, 0), reverse=True)
+
+    summaries = non_dup
 
     return {
         "summaries": summaries,
         "novelty_results": novelty_results,
         "relevance_by_url": relevance_by_url,
         "knowledge_graph": kg,
+        "dlq_failures": dlq_failures,
     }
 
 
@@ -483,24 +613,51 @@ def _should_stop_after_read(state: PipelineState) -> str:
     return "novelty"
 
 
+# ── Checkpoint wrapper ───────────────────────────────────────────────────────
+
+
+def checkpointed(phase: str, fn):
+    """Wrap a node function to save checkpoint data after execution."""
+    async def wrapper(state: PipelineState) -> dict:
+        result = await fn(state)
+        cs = state.get("checkpoint_store")
+        if cs is not None:
+            try:
+                await cs.save(phase, result)
+            except Exception:
+                log.warning("Failed to save checkpoint for phase '%s'", phase, exc_info=True)
+        return result
+    wrapper.__name__ = fn.__name__
+    return wrapper
+
+
 # ── Graph builder ────────────────────────────────────────────────────────────
 
 
-def build_pipeline_graph() -> StateGraph:
+# Phase ordering for resume support
+PHASE_ORDER = [
+    "ingest_feedback", "discover", "dedup", "filter",
+    "swap_to_reader", "deep_read", "novelty", "graph_update", "briefing",
+]
+
+
+def build_pipeline_graph(*, start_from: str | None = None) -> StateGraph:
     """Construct the LangGraph StateGraph for the CurioPilot pipeline."""
     graph = StateGraph(PipelineState)
 
-    graph.add_node("ingest_feedback", ingest_feedback_node)
-    graph.add_node("discover", discover_node)
-    graph.add_node("dedup", dedup_node)
-    graph.add_node("filter", filter_node)
+    graph.add_node("ingest_feedback", checkpointed("ingest_feedback", ingest_feedback_node))
+    graph.add_node("discover", checkpointed("discover", discover_node))
+    graph.add_node("dedup", checkpointed("dedup", dedup_node))
+    graph.add_node("filter", checkpointed("filter", filter_node))
     graph.add_node("swap_to_reader", swap_to_reader_node)
-    graph.add_node("deep_read", deep_read_node)
-    graph.add_node("novelty", novelty_node)
-    graph.add_node("graph_update", graph_update_node)
-    graph.add_node("briefing", briefing_node)
+    graph.add_node("deep_read", checkpointed("deep_read", deep_read_node))
+    graph.add_node("novelty", checkpointed("novelty", novelty_node))
+    graph.add_node("graph_update", checkpointed("graph_update", graph_update_node))
+    graph.add_node("briefing", checkpointed("briefing", briefing_node))
 
-    graph.set_entry_point("ingest_feedback")
+    entry = start_from if start_from and start_from in PHASE_ORDER else "ingest_feedback"
+    graph.set_entry_point(entry)
+
     graph.add_edge("ingest_feedback", "discover")
     graph.add_edge("discover", "dedup")
     graph.add_conditional_edges("dedup", _should_stop_after_dedup, {"filter": "filter", END: END})

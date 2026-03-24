@@ -202,6 +202,14 @@ class ArticleStore:
             {"briefing_date": row[0], "article_count": row[1]} for row in rows
         ]
 
+    async def delete_articles_by_date(self, briefing_date: str) -> int:
+        """Delete all articles for a given briefing date. Returns rows deleted."""
+        cursor = await self._db.execute(
+            "DELETE FROM articles WHERE briefing_date = ?", (briefing_date,)
+        )
+        await self._db.commit()
+        return cursor.rowcount
+
     async def search_articles(self, query: str) -> list[dict]:
         """Search articles by title, summary, or body_content using LIKE."""
         pattern = f"%{query}%"

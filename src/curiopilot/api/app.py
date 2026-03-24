@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 class UiBridge(Protocol):
     """Minimal interface for desktop UI actions."""
 
-    def open_reader(self, url: str, title: str | None = None) -> bool: ...
+    def open_reader(self, url: str, title: str | None = None) -> tuple[bool, str]: ...
 
 
 def create_app(
@@ -81,8 +81,13 @@ def _register_routes(app: FastAPI) -> None:
     from curiopilot.api.routes.articles import router as articles_router
     from curiopilot.api.routes.briefings import router as briefings_router
     from curiopilot.api.routes.feedback import router as feedback_router
+    from curiopilot.api.routes.bookmarks import router as bookmarks_router
+    from curiopilot.api.routes.config import router as config_router
+    from curiopilot.api.routes.graph import router as graph_router
+    from curiopilot.api.routes.obsidian import router as obsidian_router
     from curiopilot.api.routes.pipeline import router as pipeline_router
     from curiopilot.api.routes.search import router as search_router
+    from curiopilot.api.routes.sources import router as sources_router
     from curiopilot.api.routes.stats import router as stats_router
     from curiopilot.api.routes.ui import router as ui_router
 
@@ -91,6 +96,11 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(feedback_router, prefix="/api")
     app.include_router(stats_router, prefix="/api")
     app.include_router(search_router, prefix="/api")
+    app.include_router(sources_router, prefix="/api")
+    app.include_router(bookmarks_router, prefix="/api")
+    app.include_router(config_router, prefix="/api")
+    app.include_router(graph_router, prefix="/api")
+    app.include_router(obsidian_router, prefix="/api")
     app.include_router(pipeline_router, prefix="/api")
     app.include_router(ui_router, prefix="/api")
 
@@ -111,4 +121,6 @@ def _mount_frontend(app: FastAPI) -> None:
         file_path = frontend_dir / full_path
         if full_path and file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(index_html)
+        response = FileResponse(index_html)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
