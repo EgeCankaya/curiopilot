@@ -18,20 +18,68 @@ sources:
   scraper: hackernews_api
   max_articles: 30
   request_delay_seconds: 2
+- name: HN New Stories
+  scraper: hackernews_api
+  url: https://hacker-news.firebaseio.com/v0/newstories.json
+  max_articles: 25
+  request_delay_seconds: 2
+- name: HN Best Stories
+  scraper: hackernews_api
+  url: https://hacker-news.firebaseio.com/v0/beststories.json
+  max_articles: 20
+  request_delay_seconds: 2
+- name: HN Show
+  scraper: hackernews_api
+  url: https://hacker-news.firebaseio.com/v0/showstories.json
+  max_articles: 15
+  request_delay_seconds: 2
 - name: r/MachineLearning
   scraper: reddit_json
   url: r/MachineLearning
   max_articles: 20
+  request_delay_seconds: 3
+- name: r/MachineLearning New
+  scraper: reddit_json
+  url: r/MachineLearning
+  query: new
+  max_articles: 15
+  request_delay_seconds: 3
+- name: r/MachineLearning Rising
+  scraper: reddit_json
+  url: r/MachineLearning
+  query: rising
+  max_articles: 10
   request_delay_seconds: 3
 - name: r/LocalLLaMA
   scraper: reddit_json
   url: r/LocalLLaMA
   max_articles: 15
   request_delay_seconds: 3
+- name: r/LocalLLaMA New
+  scraper: reddit_json
+  url: r/LocalLLaMA
+  query: new
+  max_articles: 15
+  request_delay_seconds: 3
 - name: ArXiv AI
   scraper: arxiv_feed
   query: cat:cs.AI
   max_articles: 15
+  request_delay_seconds: 5
+- name: ArXiv NLP
+  scraper: arxiv_feed
+  query: cat:cs.CL
+  max_articles: 15
+  request_delay_seconds: 5
+- name: ArXiv ML
+  scraper: arxiv_feed
+  query: cat:cs.LG
+  max_articles: 15
+  request_delay_seconds: 5
+- name: ArXiv Multi-Agent
+  scraper: arxiv_feed
+  query: cat:cs.MA
+  max_articles: 10
   request_delay_seconds: 5
 - name: Hugging Face Papers
   scraper: huggingface_scrape
@@ -65,6 +113,8 @@ scoring:
   related_threshold: 0.75
   vector_novelty_weight: 0.5
   graph_novelty_weight: 0.5
+  dedup_window_days: 7
+  briefed_dedup_window_days: 60
 chunking:
   max_tokens_per_chunk: 28000
 paths:
@@ -72,3 +122,9 @@ paths:
   database_dir: ./data
   graph_path: ./data/knowledge_graph.json
   obsidian_vault_path: F:/Coding/Obisidan
+email:
+  enabled: false
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  sender_email: ''
+  recipient_email: egemencankaya14@gmail.com

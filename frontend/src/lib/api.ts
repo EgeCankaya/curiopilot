@@ -136,6 +136,26 @@ export function updateConfig(body: Record<string, unknown>): Promise<{ status: s
   })
 }
 
+// ── Email Digest ────────────────────────────────────────────────────────────
+
+export interface TestEmailRequest {
+  password: string
+  recipient_email?: string
+}
+
+export interface TestEmailResponse {
+  status: string
+  detail: string
+}
+
+export function sendTestEmail(body: TestEmailRequest): Promise<TestEmailResponse> {
+  return fetchJSON(`${BASE}/email/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
 export function fetchAvailableModels(): Promise<{ models: { name: string; size: number; modified_at: string }[] }> {
   return fetchJSON(`${BASE}/config/models`)
 }

@@ -89,6 +89,7 @@ def _register_routes(app: FastAPI) -> None:
     from curiopilot.api.routes.search import router as search_router
     from curiopilot.api.routes.sources import router as sources_router
     from curiopilot.api.routes.stats import router as stats_router
+    from curiopilot.api.routes.email import router as email_router
     from curiopilot.api.routes.ui import router as ui_router
 
     app.include_router(briefings_router, prefix="/api")
@@ -102,6 +103,7 @@ def _register_routes(app: FastAPI) -> None:
     app.include_router(graph_router, prefix="/api")
     app.include_router(obsidian_router, prefix="/api")
     app.include_router(pipeline_router, prefix="/api")
+    app.include_router(email_router, prefix="/api")
     app.include_router(ui_router, prefix="/api")
 
 

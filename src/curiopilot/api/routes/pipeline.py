@@ -121,6 +121,22 @@ async def _execute_pipeline(
                 "dlq_failures": len(result.dlq_failures),
             })
 
+            # Send email digest if enabled
+            try:
+                config = load_config(config_path)
+                if config.email.enabled and result.briefing_markdown:
+                    from datetime import date
+
+                    from curiopilot.email_digest import send_briefing_email
+
+                    await send_briefing_email(
+                        config.email,
+                        result.briefing_markdown,
+                        date.today().isoformat(),
+                    )
+            except Exception as email_exc:
+                log.warning("Failed to send briefing email: %s", email_exc)
+
         except Exception as exc:
             log.error("Pipeline run failed: %s", exc, exc_info=True)
             _run_state["status"] = "failed"

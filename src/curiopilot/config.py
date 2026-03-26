@@ -86,10 +86,20 @@ class ScoringConfig(BaseModel):
     related_threshold: float = Field(default=0.75, ge=0, le=1)
     vector_novelty_weight: float = Field(default=0.5, ge=0, le=1)
     graph_novelty_weight: float = Field(default=0.5, ge=0, le=1)
+    dedup_window_days: int = Field(default=7, ge=1)
+    briefed_dedup_window_days: int = Field(default=60, ge=1)
 
 
 class ChunkingConfig(BaseModel):
     max_tokens_per_chunk: int = Field(default=28000, ge=1000)
+
+
+class EmailConfig(BaseModel):
+    enabled: bool = False
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    sender_email: str = ""
+    recipient_email: str = "egemencankaya14@gmail.com"
 
 
 class PathsConfig(BaseModel):
@@ -124,6 +134,7 @@ class AppConfig(BaseModel):
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
     chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
+    email: EmailConfig = Field(default_factory=EmailConfig)
 
     @field_validator("config_version")
     @classmethod

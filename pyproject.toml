@@ -26,6 +26,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "pywebview>=5.0",
+    "markdown>=3.6",
 ]
 
 [project.scripts]

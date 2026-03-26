@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useConfig } from '@/hooks/useConfig'
-import { Loader2, AlertCircle, Check, X, Plus, Save } from 'lucide-react'
+import { Loader2, AlertCircle, Check, X, Plus, Save, Mail } from 'lucide-react'
+import { sendTestEmail } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
-type Tab = 'interests' | 'sources' | 'scoring' | 'models'
+type Tab = 'interests' | 'sources' | 'scoring' | 'models' | 'email'
 
 export default function SettingsPage() {
   const { config, loading, error, saving, saveError, save, models } = useConfig()
@@ -35,6 +36,8 @@ export default function SettingsPage() {
   const sources = draft.sources as { name: string; scraper: string; url?: string; max_articles: number }[]
   const scoring = draft.scoring as Record<string, number>
   const modelsCfg = draft.models as { filter_model: string; reader_model: string; embedding_model: string }
+  const emailCfg = (draft.email as { enabled: boolean; smtp_host: string; smtp_port: number; sender_email: string; recipient_email: string } | undefined)
+    ?? { enabled: false, smtp_host: 'smtp.gmail.com', smtp_port: 587, sender_email: '', recipient_email: 'egemencankaya14@gmail.com' }
 
   const handleSave = () => {
     const patch: Record<string, unknown> = {}
@@ -42,6 +45,7 @@ export default function SettingsPage() {
     else if (tab === 'sources') patch.sources = sources
     else if (tab === 'scoring') patch.scoring = scoring
     else if (tab === 'models') patch.models = modelsCfg
+    else if (tab === 'email') patch.email = emailCfg
     save(patch)
   }
 
@@ -50,6 +54,7 @@ export default function SettingsPage() {
     { id: 'sources', label: 'Sources' },
     { id: 'scoring', label: 'Scoring' },
     { id: 'models', label: 'Models' },
+    { id: 'email', label: 'Email' },
   ]
 
   return (
@@ -103,6 +108,9 @@ export default function SettingsPage() {
       )}
       {tab === 'models' && (
         <ModelsTab models={modelsCfg} available={models} onChange={(m) => setDraft({ ...draft, models: m })} />
+      )}
+      {tab === 'email' && (
+        <EmailTab email={emailCfg} onChange={(e) => setDraft({ ...draft, email: e })} />
       )}
     </div>
   )
@@ -226,6 +234,8 @@ function ScoringTab({
     { key: 'min_briefing_items', label: 'Min Briefing Items', min: 0, max: 30, step: 1 },
     { key: 'max_briefing_items', label: 'Max Briefing Items', min: 1, max: 30, step: 1 },
     { key: 'near_duplicate_threshold', label: 'Near-Duplicate Threshold', min: 0, max: 1, step: 0.01 },
+    { key: 'dedup_window_days', label: 'Dedup Window (days)', min: 1, max: 90, step: 1 },
+    { key: 'briefed_dedup_window_days', label: 'Briefed Dedup Window (days)', min: 7, max: 365, step: 1 },
   ]
 
   // Linked weight slider
@@ -336,6 +346,145 @@ function ModelsTab({
           )}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Email Settings ──────────────────────────────────────────────────────────
+
+function EmailTab({
+  email,
+  onChange,
+}: {
+  email: { enabled: boolean; smtp_host: string; smtp_port: number; sender_email: string; recipient_email: string }
+  onChange: (e: typeof email) => void
+}) {
+  const [testPassword, setTestPassword] = useState('')
+  const [testStatus, setTestStatus] = useState<{ status: string; detail: string } | null>(null)
+  const [testing, setTesting] = useState(false)
+
+  const handleTest = async () => {
+    if (!testPassword) return
+    setTesting(true)
+    setTestStatus(null)
+    try {
+      const result = await sendTestEmail({
+        password: testPassword,
+        recipient_email: email.recipient_email,
+      })
+      setTestStatus(result)
+    } catch (e) {
+      setTestStatus({ status: 'failed', detail: e instanceof Error ? e.message : 'Unknown error' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const inputClass = 'w-full rounded-xl bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/40'
+
+  return (
+    <div className="space-y-6">
+      {/* Enable toggle */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onChange({ ...email, enabled: !email.enabled })}
+          className={cn(
+            'relative h-6 w-11 rounded-full transition-colors',
+            email.enabled ? 'bg-accent' : 'bg-bg-tertiary',
+          )}
+        >
+          <span
+            className={cn(
+              'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform',
+              email.enabled && 'translate-x-5',
+            )}
+          />
+        </button>
+        <span className="text-sm font-medium text-text-primary">
+          Send email digest after pipeline runs
+        </span>
+      </div>
+
+      {/* SMTP Host */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-text-secondary">SMTP Host</label>
+        <input
+          value={email.smtp_host}
+          onChange={(e) => onChange({ ...email, smtp_host: e.target.value })}
+          className={inputClass}
+        />
+      </div>
+
+      {/* SMTP Port */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-text-secondary">SMTP Port</label>
+        <input
+          type="number"
+          value={email.smtp_port}
+          onChange={(e) => onChange({ ...email, smtp_port: parseInt(e.target.value) || 587 })}
+          min={1}
+          max={65535}
+          className={inputClass}
+        />
+      </div>
+
+      {/* Sender Email */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-text-secondary">Sender Email</label>
+        <input
+          type="email"
+          value={email.sender_email}
+          onChange={(e) => onChange({ ...email, sender_email: e.target.value })}
+          placeholder="your-email@gmail.com"
+          className={inputClass}
+        />
+      </div>
+
+      {/* Recipient Email */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-text-secondary">Recipient Email</label>
+        <input
+          type="email"
+          value={email.recipient_email}
+          onChange={(e) => onChange({ ...email, recipient_email: e.target.value })}
+          className={inputClass}
+        />
+      </div>
+
+      {/* Test Email Section */}
+      <div className="rounded-2xl bg-bg-elevated p-4 space-y-3">
+        <p className="text-xs text-text-muted">
+          The SMTP password is read from the <code className="rounded bg-bg-tertiary px-1.5 py-0.5 text-text-secondary">CURIOPILOT_SMTP_PASSWORD</code> environment
+          variable at runtime. Enter your Gmail App Password below to send a test email.
+        </p>
+        <input
+          type="password"
+          placeholder="Gmail App Password"
+          value={testPassword}
+          onChange={(e) => setTestPassword(e.target.value)}
+          className={inputClass}
+        />
+        <button
+          type="button"
+          onClick={handleTest}
+          disabled={testing || !testPassword || !email.sender_email}
+          className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50"
+        >
+          {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+          Send Test Email
+        </button>
+        {testStatus && (
+          <div
+            className={cn(
+              'rounded-xl px-4 py-2 text-sm',
+              testStatus.status === 'sent' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
+            )}
+          >
+            {testStatus.detail}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
