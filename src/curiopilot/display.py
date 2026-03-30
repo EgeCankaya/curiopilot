@@ -71,6 +71,27 @@ def print_run_summary(result: RunResult, *, dry_run: bool = False) -> None:
     else:
         _print_briefing_summary(result)
 
+    # Show stop reason when pipeline ended without a briefing
+    if not dry_run and not result.briefing_path:
+        if result.stop_reason:
+            console.print()
+            console.print(
+                Panel(
+                    f"[yellow]{result.stop_reason}[/yellow]",
+                    title="Pipeline stopped early",
+                    expand=False,
+                )
+            )
+        if result.dlq_failures:
+            by_phase: dict[str, int] = {}
+            for f in result.dlq_failures:
+                phase = f.get("phase", "unknown")
+                by_phase[phase] = by_phase.get(phase, 0) + 1
+            breakdown = ", ".join(f"{p}: {c}" for p, c in sorted(by_phase.items()))
+            console.print(
+                f"  [dim]DLQ failures: {len(result.dlq_failures)} ({breakdown})[/dim]"
+            )
+
     if result.briefing_path:
         console.print()
         console.print(

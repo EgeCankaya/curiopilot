@@ -17,7 +17,7 @@ pytest tests/test_scrapers.py    # Run a single test file
 
 # Frontend (from frontend/ directory)
 npm run dev      # Vite dev server (port 5173, proxies /api → localhost:19231)
-npm run build    # Build SPA to frontend/dist/ (required for desktop/production)
+npm run build    # Build SPA to frontend/dist/ (required for desktop/production) ← run after any frontend changes
 npm run lint     # ESLint
 ```
 

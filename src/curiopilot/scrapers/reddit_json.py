@@ -102,4 +102,5 @@ class RedditJsonScraper(BaseScraper):
         sub = raw.strip("/")
         if not sub.startswith("r/"):
             sub = f"r/{sub}"
-        return f"https://www.reddit.com/{sub}/hot.json"
+        sort = self.source.query or "hot"
+        return f"https://www.reddit.com/{sub}/{sort}.json"

@@ -77,6 +77,51 @@ class TestHackerNewsScraper:
         assert articles[0].source_name == "HN"
         assert articles[0].score == 100
 
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_uses_source_url_when_provided(self) -> None:
+        """When source.url is set, HN scraper fetches from that URL."""
+        custom_url = "https://hacker-news.firebaseio.com/v0/newstories.json"
+        respx.get(custom_url).mock(
+            return_value=httpx.Response(200, json=[2001])
+        )
+        respx.get("https://hacker-news.firebaseio.com/v0/item/2001.json").mock(
+            return_value=httpx.Response(200, json={
+                "type": "story",
+                "title": "New Story",
+                "url": "http://example.com/new",
+                "score": 10,
+            })
+        )
+
+        source = SourceConfig(
+            name="HN New", scraper="hackernews_api",
+            url=custom_url,
+            max_articles=5, request_delay_seconds=0,
+        )
+        scraper = get_scraper(source)
+        articles = await scraper.extract_articles()
+
+        assert len(articles) == 1
+        assert articles[0].title == "New Story"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_defaults_to_topstories(self) -> None:
+        """Without source.url, HN scraper uses /topstories.json."""
+        respx.get("https://hacker-news.firebaseio.com/v0/topstories.json").mock(
+            return_value=httpx.Response(200, json=[])
+        )
+
+        source = SourceConfig(
+            name="HN", scraper="hackernews_api",
+            max_articles=5, request_delay_seconds=0,
+        )
+        scraper = get_scraper(source)
+        articles = await scraper.extract_articles()
+
+        assert len(articles) == 0
+
 
 # ── Reddit JSON scraper ──────────────────────────────────────────────────────
 
@@ -126,6 +171,33 @@ class TestRedditScraper:
 
         assert len(articles) == 1  # stickied post filtered out
         assert articles[0].title == "Reddit Post 1"
+
+    def test_build_url_defaults_to_hot(self) -> None:
+        """Without query, _build_url() produces /hot.json."""
+        source = SourceConfig(
+            name="r/test", scraper="reddit_json", url="r/test",
+            max_articles=10, request_delay_seconds=0,
+        )
+        scraper = get_scraper(source)
+        assert scraper._build_url() == "https://www.reddit.com/r/test/hot.json"
+
+    def test_build_url_uses_query_as_sort(self) -> None:
+        """When query is set, _build_url() uses it as the sort mode."""
+        source = SourceConfig(
+            name="r/test", scraper="reddit_json", url="r/test",
+            query="new", max_articles=10, request_delay_seconds=0,
+        )
+        scraper = get_scraper(source)
+        assert scraper._build_url() == "https://www.reddit.com/r/test/new.json"
+
+    def test_build_url_rising_sort(self) -> None:
+        """Rising sort mode works correctly."""
+        source = SourceConfig(
+            name="r/test", scraper="reddit_json", url="r/test",
+            query="rising", max_articles=10, request_delay_seconds=0,
+        )
+        scraper = get_scraper(source)
+        assert scraper._build_url() == "https://www.reddit.com/r/test/rising.json"
 
 
 # ── ArXiv feed scraper ───────────────────────────────────────────────────────
@@ -580,6 +652,104 @@ class TestMastodonFeedScraper:
         source = SourceConfig(
             name="Mastodon", scraper="mastodon_feed",
             url="https://mastodon.social",
+            max_articles=10, request_delay_seconds=0,
+        )
+        scraper = get_scraper(source)
+        articles = await scraper.extract_articles()
+
+        assert len(articles) == 0
+
+
+# ── YouTube RSS scraper ───────────────────────────────────────────────────
+
+
+_YOUTUBE_ATOM = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns:media="http://search.yahoo.com/mrss/"
+      xmlns="http://www.w3.org/2005/Atom">
+  <title>AI Channel</title>
+  <entry>
+    <yt:videoId>abc123</yt:videoId>
+    <title>Understanding AI Agents</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=abc123"/>
+    <media:group>
+      <media:description>A deep dive into AI agents and how they work in practice.</media:description>
+    </media:group>
+  </entry>
+  <entry>
+    <yt:videoId>def456</yt:videoId>
+    <title>LLM Fine-tuning Guide</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=def456"/>
+    <media:group>
+      <media:description>How to fine-tune large language models efficiently.</media:description>
+    </media:group>
+  </entry>
+  <entry>
+    <yt:videoId>ghi789</yt:videoId>
+    <title>No Description Video</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=ghi789"/>
+    <media:group>
+      <media:description></media:description>
+    </media:group>
+  </entry>
+</feed>
+"""
+
+
+class TestYouTubeRssScraper:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_extract_articles(self) -> None:
+        feed_url = "https://www.youtube.com/feeds/videos.xml?channel_id=UC_TEST"
+        respx.get(feed_url).mock(
+            return_value=httpx.Response(200, text=_YOUTUBE_ATOM)
+        )
+
+        source = SourceConfig(
+            name="YouTube: Test", scraper="youtube_rss",
+            url=feed_url,
+            max_articles=10, request_delay_seconds=0,
+        )
+        scraper = get_scraper(source)
+        articles = await scraper.extract_articles()
+
+        assert len(articles) == 3
+        assert articles[0].title == "Understanding AI Agents"
+        assert articles[0].url == "https://www.youtube.com/watch?v=abc123"
+        assert articles[0].source_name == "YouTube: Test"
+        assert articles[0].snippet == "A deep dive into AI agents and how they work in practice."
+
+        assert articles[1].title == "LLM Fine-tuning Guide"
+        assert articles[1].url == "https://www.youtube.com/watch?v=def456"
+
+        # Entry with empty description should still be included
+        assert articles[2].title == "No Description Video"
+        assert articles[2].snippet is None
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_max_articles_respected(self) -> None:
+        feed_url = "https://www.youtube.com/feeds/videos.xml?channel_id=UC_TEST"
+        respx.get(feed_url).mock(
+            return_value=httpx.Response(200, text=_YOUTUBE_ATOM)
+        )
+
+        source = SourceConfig(
+            name="YouTube: Test", scraper="youtube_rss",
+            url=feed_url,
+            max_articles=1, request_delay_seconds=0,
+        )
+        scraper = get_scraper(source)
+        articles = await scraper.extract_articles()
+
+        assert len(articles) == 1
+        assert articles[0].title == "Understanding AI Agents"
+
+    @pytest.mark.asyncio
+    async def test_missing_url_returns_empty(self) -> None:
+        source = SourceConfig(
+            name="YouTube: No URL", scraper="youtube_rss",
             max_articles=10, request_delay_seconds=0,
         )
         scraper = get_scraper(source)

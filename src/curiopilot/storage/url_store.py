@@ -89,6 +89,14 @@ class URLStore:
         self._conn = await aiosqlite.connect(str(self._db_path))
         await self._conn.executescript(_SCHEMA)
         await self._conn.commit()
+        # Migration: add was_briefed column if missing
+        try:
+            await self._conn.execute(
+                "ALTER TABLE visited_urls ADD COLUMN was_briefed BOOLEAN DEFAULT 0"
+            )
+            await self._conn.commit()
+        except Exception:
+            pass  # Column already exists
         log.info("URL store opened at %s", self._db_path)
 
     async def close(self) -> None:
@@ -108,14 +116,39 @@ class URLStore:
         )
         return (await cursor.fetchone()) is not None
 
-    async def filter_new_urls(self, urls: list[str]) -> set[str]:
-        """Return the subset of *urls* that have NOT been visited."""
+    async def filter_new_urls(
+        self,
+        urls: list[str],
+        dedup_window_days: int = 0,
+        briefed_dedup_window_days: int = 0,
+    ) -> set[str]:
+        """Return the subset of *urls* that have NOT been visited recently.
+
+        When *dedup_window_days* > 0, URLs older than their window are eligible
+        for rediscovery.  Briefed URLs use the longer *briefed_dedup_window_days*.
+        When both are 0, permanent exclusion is applied (backward-compat).
+        """
         if not urls:
             return set()
         placeholders = ",".join("?" for _ in urls)
-        cursor = await self._db.execute(
-            f"SELECT url FROM visited_urls WHERE url IN ({placeholders})", urls
-        )
+        if dedup_window_days > 0:
+            sql = (
+                f"SELECT url FROM visited_urls WHERE url IN ({placeholders}) AND ("
+                "  (was_briefed = 1 AND first_seen > datetime('now', ?))"
+                "  OR"
+                "  (COALESCE(was_briefed, 0) = 0 AND first_seen > datetime('now', ?))"
+                ")"
+            )
+            params = [
+                *urls,
+                f"-{briefed_dedup_window_days} days",
+                f"-{dedup_window_days} days",
+            ]
+            cursor = await self._db.execute(sql, params)
+        else:
+            cursor = await self._db.execute(
+                f"SELECT url FROM visited_urls WHERE url IN ({placeholders})", urls
+            )
         known = {row[0] for row in await cursor.fetchall()}
         return set(urls) - known
 
@@ -129,9 +162,16 @@ class URLStore:
     ) -> None:
         await self._db.execute(
             """\
-            INSERT OR IGNORE INTO visited_urls
+            INSERT INTO visited_urls
                 (url, title, source_name, passed_relevance, relevance_score)
             VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(url) DO UPDATE SET
+                first_seen = CURRENT_TIMESTAMP,
+                title = excluded.title,
+                source_name = excluded.source_name,
+                passed_relevance = excluded.passed_relevance,
+                relevance_score = excluded.relevance_score,
+                was_briefed = 0
             """,
             (url, title, source_name, passed_relevance, relevance_score),
         )
@@ -144,11 +184,29 @@ class URLStore:
         """Insert many rows at once (url, title, source, passed, score)."""
         await self._db.executemany(
             """\
-            INSERT OR IGNORE INTO visited_urls
+            INSERT INTO visited_urls
                 (url, title, source_name, passed_relevance, relevance_score)
             VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(url) DO UPDATE SET
+                first_seen = CURRENT_TIMESTAMP,
+                title = excluded.title,
+                source_name = excluded.source_name,
+                passed_relevance = excluded.passed_relevance,
+                relevance_score = excluded.relevance_score,
+                was_briefed = 0
             """,
             rows,
+        )
+        await self._db.commit()
+
+    async def mark_batch_briefed(self, urls: list[str]) -> None:
+        """Mark URLs as having been included in a briefing."""
+        if not urls:
+            return
+        placeholders = ",".join("?" for _ in urls)
+        await self._db.execute(
+            f"UPDATE visited_urls SET was_briefed = 1 WHERE url IN ({placeholders})",
+            urls,
         )
         await self._db.commit()
 

@@ -38,6 +38,7 @@ class RunResult:
     briefing_markdown: str = ""
     duration_seconds: float = 0.0
     dlq_failures: list[dict] = field(default_factory=list)
+    stop_reason: str = ""
 
 
 async def run_pipeline(
@@ -150,6 +151,23 @@ async def run_pipeline(
         result.briefing_path = final_state.get("briefing_path")
         result.briefing_markdown = final_state.get("briefing_markdown", "")
         result.dlq_failures = final_state.get("dlq_failures", [])
+
+        # Infer stop reason when pipeline ended early without a briefing
+        if not dry_run and not result.briefing_path:
+            if not final_state.get("all_articles"):
+                result.stop_reason = "No articles discovered from any source"
+            elif not final_state.get("new_articles"):
+                result.stop_reason = (
+                    "All discovered URLs already visited "
+                    f"(dedup window: {config.scoring.dedup_window_days}d / "
+                    f"briefed: {config.scoring.briefed_dedup_window_days}d)"
+                )
+            elif not final_state.get("passed"):
+                result.stop_reason = "No articles passed the relevance filter"
+            elif not final_state.get("summaries"):
+                result.stop_reason = "All article reads/summaries failed"
+            else:
+                result.stop_reason = "Briefing generation failed unexpectedly"
 
     finally:
         try:

@@ -35,6 +35,7 @@ def get_scraper(source: "SourceConfig") -> "BaseScraper":
     import curiopilot.scrapers.podcast_rss  # noqa: F401
     import curiopilot.scrapers.reddit_json  # noqa: F401
     import curiopilot.scrapers.substack_feed  # noqa: F401
+    import curiopilot.scrapers.youtube_rss  # noqa: F401
 
     cls = _REGISTRY.get(source.scraper)
     if cls is None:

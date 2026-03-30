@@ -22,6 +22,7 @@ KNOWN_SCRAPERS = {
     "podcast_rss",
     "bluesky_feed",
     "mastodon_feed",
+    "youtube_rss",
 }
 
 

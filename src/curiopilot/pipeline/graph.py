@@ -65,6 +65,7 @@ class PipelineState(TypedDict, total=False):
 
     # Filter phase
     passed: list[ScoredArticle]
+    reserve_articles: list[ScoredArticle]  # Extra articles for reader-stage backfill
 
     # Deep read phase
     summaries: list[ArticleSummary]
@@ -216,6 +217,7 @@ async def discover_node(state: PipelineState) -> dict:
 
 async def dedup_node(state: PipelineState) -> dict:
     """Deduplicate URLs against SQLite; mark visited for dry-run."""
+    config = state["config"]
     store = state["store"]
     all_articles = state.get("all_articles", [])
     dry_run = state.get("dry_run", False)
@@ -223,7 +225,11 @@ async def dedup_node(state: PipelineState) -> dict:
 
     _notify(cb, "dedup", 0, 1)
     urls = [a.url for a in all_articles]
-    new_urls = await store.filter_new_urls(urls)
+    new_urls = await store.filter_new_urls(
+        urls,
+        dedup_window_days=config.scoring.dedup_window_days,
+        briefed_dedup_window_days=config.scoring.briefed_dedup_window_days,
+    )
     new_articles = [a for a in all_articles if a.url in new_urls]
     log.info(
         "Dedup: %d scanned -> %d new (skipped %d already visited)",
@@ -258,6 +264,7 @@ async def filter_node(state: PipelineState) -> dict:
             )
             for a in new_articles
         ]
+        below: list[ScoredArticle] = []
         rows = [(a.url, a.title, a.source_name, True, 10) for a in new_articles]
         await store.mark_batch_visited(rows)
     else:
@@ -291,6 +298,21 @@ async def filter_node(state: PipelineState) -> dict:
             )
 
         threshold = config.scoring.relevance_threshold
+
+        # Adaptive: lower threshold when dedup pool is thin
+        min_items = config.scoring.min_briefing_items
+        if len(new_articles) < min_items * 2:
+            threshold = max(3, threshold - 2)
+            log.info(
+                "Adaptive threshold: pool=%d < %d, lowered to %d",
+                len(new_articles), min_items * 2, threshold,
+            )
+        elif len(new_articles) < min_items * 3:
+            threshold = max(4, threshold - 1)
+            log.info(
+                "Adaptive threshold: pool=%d < %d, lowered to %d",
+                len(new_articles), min_items * 3, threshold,
+            )
 
         passed = []
         below = []
@@ -326,10 +348,20 @@ async def filter_node(state: PipelineState) -> dict:
 
     passed.sort(key=lambda s: s.relevance.score, reverse=True)
     max_items = config.scoring.max_briefing_items
-    passed = passed[:max_items]
-    log.info("Filter: %d passed (capped to %d)", len(passed), max_items)
+    min_items = config.scoring.min_briefing_items
 
-    return {"passed": passed, "dlq_failures": dlq_failures}
+    # Keep extra articles as reserves for reader-stage backfill
+    reserve = passed[max_items : max_items + min_items]
+    if len(reserve) < min_items:
+        used = set(id(s) for s in passed[:max_items]) | set(id(s) for s in reserve)
+        extra = [s for s in below if id(s) not in used]
+        extra.sort(key=lambda s: s.relevance.score, reverse=True)
+        reserve.extend(extra[: min_items - len(reserve)])
+
+    passed = passed[:max_items]
+    log.info("Filter: %d passed (capped to %d), %d reserve", len(passed), max_items, len(reserve))
+
+    return {"passed": passed, "reserve_articles": reserve, "dlq_failures": dlq_failures}
 
 
 async def swap_to_reader_node(state: PipelineState) -> dict:
@@ -394,7 +426,48 @@ async def deep_read_node(state: PipelineState) -> dict:
 
     log.info("Deep read: %d summaries produced from %d articles", len(summaries), len(passed))
 
-    return {"summaries": summaries, "dlq_failures": dlq_failures}
+    # Backfill from reserves if too many articles failed
+    min_items = config.scoring.min_briefing_items
+    reserve = list(state.get("reserve_articles", []))
+
+    if len(summaries) < min_items and reserve:
+        deficit = min_items - len(summaries)
+        batch = reserve[: deficit + 2]
+        log.info(
+            "Deep read: only %d/%d summaries, backfilling from %d reserve(s)",
+            len(summaries), min_items, len(batch),
+        )
+
+        reserve_failures: list[ReaderFailure] = []
+        reserve_summaries = await read_and_summarize(
+            batch, config, client,
+            progress_callback=_reader_progress,
+            breaker=breaker,
+            fetch_concurrency=config.ollama.fetch_concurrency,
+            llm_concurrency=config.ollama.llm_concurrency,
+            failures=reserve_failures,
+        )
+
+        for f in reserve_failures:
+            dlq_failures.append({
+                "url": f.url, "title": f.title, "source_name": f.source_name,
+                "phase": f.phase, "error_type": f.error_type,
+                "error_message": f.error_message, "run_id": run_id,
+            })
+            await store.add_to_dlq(
+                f.url, f.title, f.source_name,
+                f.phase, f.error_type, f.error_message, run_id,
+            )
+
+        summaries.extend(reserve_summaries)
+
+        # Extend passed so novelty node has relevance scores for reserve articles
+        reserve_urls = {s.url for s in reserve_summaries}
+        passed = list(passed) + [sa for sa in batch if sa.article.url in reserve_urls]
+
+        log.info("Deep read backfill: +%d summaries (total %d)", len(reserve_summaries), len(summaries))
+
+    return {"summaries": summaries, "passed": passed, "dlq_failures": dlq_failures}
 
 
 async def novelty_node(state: PipelineState) -> dict:
@@ -584,6 +657,12 @@ async def briefing_node(state: PipelineState) -> dict:
             log.info("Inserted %d article(s) into article store for %s", count, today_str)
         except Exception:
             log.warning("Failed to insert articles into article store", exc_info=True)
+
+    # Mark briefed URLs so they use the longer dedup window
+    store = state["store"]
+    briefed_urls = [s.url for s in state.get("summaries", [])]
+    if briefed_urls:
+        await store.mark_batch_briefed(briefed_urls)
 
     _notify(cb, "briefing", 1, 1)
 

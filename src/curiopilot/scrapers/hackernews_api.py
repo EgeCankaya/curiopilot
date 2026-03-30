@@ -25,7 +25,8 @@ class HackerNewsApiScraper(BaseScraper):
         delay = self.source.request_delay_seconds
 
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(f"{HN_API}/topstories.json")
+            endpoint = self.source.url or f"{HN_API}/topstories.json"
+            resp = await client.get(endpoint)
             resp.raise_for_status()
             story_ids: list[int] = resp.json()[:max_articles]
 

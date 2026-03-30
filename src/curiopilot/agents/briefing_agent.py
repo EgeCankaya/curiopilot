@@ -61,17 +61,6 @@ def generate_briefing(ctx: BriefingContext) -> str:
         lines.append("*No articles to include in today's briefing.*")
         return "\n".join(lines)
 
-    # ── New Concepts ─────────────────────────────────────────────────────
-    if ctx.new_concepts:
-        lines.append("## New Concepts")
-        lines.append("> Topics appearing for the first time in your knowledge graph.")
-        lines.append("")
-        for concept, article_title in ctx.new_concepts:
-            lines.append(f"- **{concept}**: First encountered in \"{article_title}\"")
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
     # ── Top Articles ─────────────────────────────────────────────────────
     # Separate "genuinely novel" from "deepening" articles
     novel_summaries: list[ArticleSummary] = []
@@ -143,6 +132,17 @@ def generate_briefing(ctx: BriefingContext) -> str:
             lines.append("---")
             lines.append("")
 
+    # ── New Concepts ─────────────────────────────────────────────────────
+    if ctx.new_concepts:
+        lines.append("## New Concepts")
+        lines.append("> Topics appearing for the first time in your knowledge graph.")
+        lines.append("")
+        for concept, article_title in ctx.new_concepts:
+            lines.append(f"- **{concept}**: First encountered in \"{article_title}\"")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
     # ── Knowledge Graph Update ───────────────────────────────────────────
     gs = ctx.graph_stats
     lines.append("## Knowledge Graph Update")
@@ -172,7 +172,7 @@ def generate_briefing(ctx: BriefingContext) -> str:
         lines.append("")
         lines.append("## Your Feedback")
         lines.append("> Rate articles after reading. Processed automatically on next `curiopilot run`.")
-        lines.append("> read: yes/no | interest: 1-5 | quality: like/dislike/broken")
+        lines.append("> read: yes/no | interest: 1-5 | quality: like/meh/dislike/broken")
         lines.append("")
         for n in range(1, article_counter + 1):
             title = article_titles[n - 1] if n <= len(article_titles) else ""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -15,6 +16,24 @@ from tenacity import (
 )
 
 log = logging.getLogger(__name__)
+
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+_JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*\n(.*?)```", re.DOTALL)
+
+
+def _strip_thinking(text: str) -> str:
+    """Remove ``<think>…</think>`` blocks emitted by reasoning models (e.g. Qwen3)."""
+    return _THINK_RE.sub("", text).strip()
+
+
+def _extract_json(text: str) -> str:
+    """Extract JSON from model output, handling thinking tags and markdown fences."""
+    text = _strip_thinking(text)
+    # Try to extract from markdown code block
+    m = _JSON_BLOCK_RE.search(text)
+    if m:
+        return m.group(1).strip()
+    return text
 
 
 class OllamaClient:
@@ -81,7 +100,6 @@ class OllamaClient:
                 "model": model,
                 "prompt": prompt,
                 "stream": False,
-                "format": "json",
             }
             if keep_alive is not None:
                 payload["keep_alive"] = keep_alive
@@ -93,7 +111,7 @@ class OllamaClient:
                 )
                 resp.raise_for_status()
                 body = resp.json()
-                text = body.get("response", "")
+                text = _extract_json(body.get("response", ""))
                 return json.loads(text)
             finally:
                 if owns_client:
@@ -133,7 +151,7 @@ class OllamaClient:
                     f"{self.base_url}/api/generate", json=payload
                 )
                 resp.raise_for_status()
-                return resp.json().get("response", "")
+                return _strip_thinking(resp.json().get("response", ""))
             finally:
                 if owns_client:
                     await client.aclose()

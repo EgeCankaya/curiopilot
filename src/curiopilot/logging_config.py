@@ -7,6 +7,7 @@ calls continue to work without modification.
 
 from __future__ import annotations
 
+import io
 import logging
 import sys
 
@@ -47,7 +48,12 @@ def setup_logging(verbose: bool = False, json_file: str | None = None) -> None:
         foreign_pre_chain=shared_processors,
     )
 
-    console_handler = logging.StreamHandler(sys.stderr)
+    # Bypass Rich's stderr proxy and use errors="replace" to avoid crashes
+    # when log messages contain characters the Windows console can't encode.
+    log_stream = io.TextIOWrapper(
+        sys.__stderr__.buffer, encoding=sys.__stderr__.encoding or "utf-8", errors="replace",
+    )
+    console_handler = logging.StreamHandler(log_stream)
     console_handler.setFormatter(console_formatter)
 
     root = logging.getLogger()

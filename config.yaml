@@ -10,6 +10,17 @@ interests:
   - quantized LLMs
   - local inference
   - prompt engineering
+  - local LLMs
+  - RAG
+  - retrieval augmented generation
+  - tool use
+  - structured output
+  - AI coding assistants
+  - open-source AI
+  - LLM benchmarks
+  - inference optimization
+  - Claude
+  - Anthropic
   excluded:
   - cryptocurrency
   - web3
@@ -95,26 +106,107 @@ sources:
   url: https://medium.com/feed/tag/machine-learning
   max_articles: 15
   request_delay_seconds: 3
+- name: Lobsters
+  scraper: lobsters_feed
+  max_articles: 20
+  request_delay_seconds: 2
+- name: GitHub Trending
+  scraper: github_trending
+  max_articles: 15
+  request_delay_seconds: 3
+- name: GitHub Trending Python
+  scraper: github_trending
+  query: python
+  max_articles: 10
+  request_delay_seconds: 3
+- name: Simon Willison
+  scraper: generic_scrape
+  url: https://simonwillison.net/atom/everything/
+  max_articles: 10
+  request_delay_seconds: 3
+- name: Bluesky AI
+  scraper: bluesky_feed
+  query: AI agents LLM
+  max_articles: 15
+  request_delay_seconds: 2
+- name: Bluesky Claude
+  scraper: bluesky_feed
+  query: Claude Anthropic
+  max_articles: 10
+  request_delay_seconds: 2
+- name: Mastodon AI
+  scraper: mastodon_feed
+  url: https://mastodon.social
+  query: machinelearning
+  max_articles: 10
+  request_delay_seconds: 3
+- name: Sigmoid Social AI
+  scraper: mastodon_feed
+  url: https://sigmoid.social
+  query: ai
+  max_articles: 10
+  request_delay_seconds: 3
+- name: r/ClaudeAI
+  scraper: reddit_json
+  url: r/ClaudeAI
+  max_articles: 15
+  request_delay_seconds: 3
+- name: r/ClaudeAI New
+  scraper: reddit_json
+  url: r/ClaudeAI
+  query: new
+  max_articles: 10
+  request_delay_seconds: 3
+- name: r/anthropic
+  scraper: reddit_json
+  url: r/anthropic
+  max_articles: 15
+  request_delay_seconds: 3
+- name: r/anthropic New
+  scraper: reddit_json
+  url: r/anthropic
+  query: new
+  max_articles: 10
+  request_delay_seconds: 3
+- name: "YouTube: 3Blue1Brown"
+  scraper: youtube_rss
+  url: https://www.youtube.com/feeds/videos.xml?channel_id=UCYO_jab_esuFRV4b17AJtAw
+  max_articles: 5
+  request_delay_seconds: 2
+- name: "YouTube: Two Minute Papers"
+  scraper: youtube_rss
+  url: https://www.youtube.com/feeds/videos.xml?channel_id=UCbfYPyITQ-7l4upoX8nvctg
+  max_articles: 5
+  request_delay_seconds: 2
+- name: "YouTube: Yannic Kilcher"
+  scraper: youtube_rss
+  url: https://www.youtube.com/feeds/videos.xml?channel_id=UCZHmQk67mSJgfCCTn7xBfew
+  max_articles: 5
+  request_delay_seconds: 2
 models:
-  filter_model: qwen2.5:7b-instruct-q8_0
-  reader_model: qwen2.5:14b-instruct-q4_K_M
+  filter_model: qwen3:8b
+  reader_model: qwen3:14b
   embedding_model: nomic-embed-text
 ollama:
   base_url: http://localhost:11434
-  timeout_seconds: 120
+  timeout_seconds: 180
   max_retries: 3
+  filter_timeout_seconds: 90
+  summarize_timeout_seconds: 180
+  circuit_breaker_threshold: 10
+  circuit_breaker_reset_seconds: 120
 scoring:
-  relevance_threshold: 6
+  relevance_threshold: 5
   novelty_weight: 0.6
   relevance_weight: 0.4
   min_briefing_items: 5
-  max_briefing_items: 10
+  max_briefing_items: 15
   near_duplicate_threshold: 0.92
   related_threshold: 0.75
   vector_novelty_weight: 0.5
   graph_novelty_weight: 0.5
   dedup_window_days: 7
-  briefed_dedup_window_days: 60
+  briefed_dedup_window_days: 30
 chunking:
   max_tokens_per_chunk: 28000
 paths:
@@ -126,5 +218,5 @@ email:
   enabled: false
   smtp_host: smtp.gmail.com
   smtp_port: 587
-  sender_email: ''
-  recipient_email: egemencankaya14@gmail.com
+  sender_email: ""
+  recipient_email: ""

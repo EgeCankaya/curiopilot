@@ -1,7 +1,7 @@
 import type { FeedbackItem } from '@/types'
 import { submitFeedback } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { ExternalLink, ThumbsDown, ThumbsUp, AlertTriangle } from 'lucide-react'
+import { ExternalLink, ThumbsDown, ThumbsUp, AlertTriangle, Minus } from 'lucide-react'
 
 interface FeedbackControlsProps {
   date: string
@@ -104,6 +104,18 @@ export default function FeedbackControls({
           >
             <ThumbsUp className="h-3.5 w-3.5" />
             Like
+          </button>
+          <button
+            onClick={() => handleQuality('meh')}
+            className={cn(
+              'flex items-center gap-1 rounded-xl px-3 py-1 text-sm transition-all duration-200',
+              feedback?.quality === 'meh'
+                ? 'bg-text-muted/20 text-text-secondary'
+                : 'bg-bg-tertiary text-text-muted hover:text-text-primary',
+            )}
+          >
+            <Minus className="h-3.5 w-3.5" />
+            Meh
           </button>
           <button
             onClick={() => handleQuality('dislike')}
