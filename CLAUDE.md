@@ -69,9 +69,10 @@ SQLite + ChromaDB + JSON files (./data/)
 |------|---------|
 | `src/curiopilot/api/` | FastAPI app factory, route modules, schemas, deps |
 | `src/curiopilot/pipeline/` | LangGraph orchestration, checkpointing |
-| `src/curiopilot/scrapers/` | Per-source scrapers (11 types, registry pattern) |
+| `src/curiopilot/scrapers/` | Per-source scrapers (12 types, registry pattern) |
 | `src/curiopilot/agents/` | LLM-based filter, reader, novelty, query, briefing agents |
 | `src/curiopilot/storage/` | ArticleStore, URLStore, knowledge graph, taxonomy |
+| `src/curiopilot/email_digest.py` | SMTP email rendering and delivery for briefings |
 | `src/curiopilot/llm/` | Ollama client wrapper + circuit breaker |
 | `src/curiopilot/export/` | Obsidian vault export |
 | `frontend/src/components/` | React components (organized by domain) |
@@ -113,6 +114,7 @@ SQLite + ChromaDB + JSON files (./data/)
 | `articles` | `/api/briefings/{date}/articles` | `GET /{num}` full article with body |
 | `feedback` | `/api/briefings/{date}` | `GET .../feedback`, `POST .../articles/{num}/feedback` |
 | `pipeline` | `/api/run` | `POST /` trigger, `GET /status`, `GET /stream` (SSE) |
+| `pipeline` | `/api/dlq` | `GET /` list, `GET /stats`, `DELETE /{url}`, `DELETE /` clear |
 | `search` | `/api/search` | `GET ?q=` keyword search |
 | `stats` | `/api/stats` | `GET /` aggregate statistics |
 | `bookmarks` | `/api/bookmarks` | CRUD bookmarks + `GET/POST/DELETE /collections` |
@@ -120,7 +122,8 @@ SQLite + ChromaDB + JSON files (./data/)
 | `graph` | `/api/graph` | `GET ?max_nodes=200` knowledge graph visualization |
 | `obsidian` | `/api/obsidian` | `GET /status`, `POST /export` |
 | `sources` | `/api/sources` | `POST /import-opml` |
-| `dlq` | `/api/dlq` | `GET /` list, `GET /stats`, `DELETE /{url}`, `DELETE /` clear |
+| `email` | `/api/email` | `POST /test`, `POST /send-briefing/{date}` |
+| `health` | `/api/health` | `GET /health` server + Ollama status |
 | `ui` | `/api/ui` | `POST /open-reader` (desktop only) |
 
 ## Storage

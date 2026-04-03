@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from curiopilot.api.deps import get_config
@@ -54,4 +54,26 @@ async def send_test_email(body: TestEmailRequest, config=Depends(get_config)):
         )
     except Exception as exc:
         log.warning("Test email failed: %s", exc)
+        return TestEmailResponse(status="failed", detail=str(exc))
+
+
+@router.post("/email/send-briefing/{date}", response_model=TestEmailResponse)
+async def send_briefing_email_for_date(date: str, config=Depends(get_config)):
+    """Send the briefing email for a specific date."""
+    from pathlib import Path
+
+    from curiopilot.email_digest import send_briefing_email
+
+    path = Path(config.paths.briefings_dir) / f"{date}.md"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"No briefing found for {date}")
+    briefing_markdown = path.read_text(encoding="utf-8")
+    try:
+        await send_briefing_email(config.email, briefing_markdown, date)
+        return TestEmailResponse(
+            status="sent",
+            detail=f"Email sent to {config.email.recipient_email}",
+        )
+    except Exception as exc:
+        log.warning("Failed to send briefing email: %s", exc)
         return TestEmailResponse(status="failed", detail=str(exc))

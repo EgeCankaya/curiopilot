@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { BriefingDetail } from '@/types'
-import { BarChart3, BookOpen, Clock, Filter, Lightbulb, Network, Compass, RefreshCw } from 'lucide-react'
+import { BarChart3, BookOpen, Clock, Filter, Lightbulb, Network, Compass, RefreshCw, Mail } from 'lucide-react'
+import { sendBriefingEmail } from '@/lib/api'
 
 interface BriefingOverviewProps {
   detail: BriefingDetail
@@ -29,6 +30,8 @@ function formatDate(dateStr: string): string {
 export default function BriefingOverview({ detail, onRerun, isRunning }: BriefingOverviewProps) {
   const graphStats = detail.graph_stats as Record<string, unknown> | null
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [emailDetail, setEmailDetail] = useState('')
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const isToday = detail.briefing_date === todayStr
@@ -37,6 +40,19 @@ export default function BriefingOverview({ detail, onRerun, isRunning }: Briefin
   const handleConfirm = () => {
     setConfirmOpen(false)
     onRerun?.(detail.briefing_date)
+  }
+
+  const handleSendEmail = async () => {
+    setEmailState('sending')
+    setEmailDetail('')
+    try {
+      const res = await sendBriefingEmail(detail.briefing_date)
+      setEmailState(res.status === 'sent' ? 'sent' : 'error')
+      setEmailDetail(res.detail)
+    } catch (err) {
+      setEmailState('error')
+      setEmailDetail(err instanceof Error ? err.message : String(err))
+    }
   }
 
   return (
@@ -51,17 +67,35 @@ export default function BriefingOverview({ detail, onRerun, isRunning }: Briefin
             Daily briefing with {detail.articles.length} articles
           </p>
         </div>
-        {isToday && onRerun && (
-          <button
-            type="button"
-            onClick={handleRerunClick}
-            disabled={isRunning}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Re-run
-          </button>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            {isToday && onRerun && (
+              <button
+                type="button"
+                onClick={handleRerunClick}
+                disabled={isRunning}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Re-run
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleSendEmail}
+              disabled={emailState === 'sending'}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              {emailState === 'sending' ? 'Sending…' : 'Send Email'}
+            </button>
+          </div>
+          {emailState !== 'idle' && (
+            <p className={`text-xs ${emailState === 'sent' ? 'text-success' : 'text-error'}`}>
+              {emailDetail}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Confirm dialog */}

@@ -168,17 +168,17 @@ sources:
   query: new
   max_articles: 10
   request_delay_seconds: 3
-- name: "YouTube: 3Blue1Brown"
+- name: 'YouTube: 3Blue1Brown'
   scraper: youtube_rss
   url: https://www.youtube.com/feeds/videos.xml?channel_id=UCYO_jab_esuFRV4b17AJtAw
   max_articles: 5
   request_delay_seconds: 2
-- name: "YouTube: Two Minute Papers"
+- name: 'YouTube: Two Minute Papers'
   scraper: youtube_rss
   url: https://www.youtube.com/feeds/videos.xml?channel_id=UCbfYPyITQ-7l4upoX8nvctg
   max_articles: 5
   request_delay_seconds: 2
-- name: "YouTube: Yannic Kilcher"
+- name: 'YouTube: Yannic Kilcher'
   scraper: youtube_rss
   url: https://www.youtube.com/feeds/videos.xml?channel_id=UCZHmQk67mSJgfCCTn7xBfew
   max_articles: 5

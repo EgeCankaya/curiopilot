@@ -90,8 +90,10 @@ def _register_routes(app: FastAPI) -> None:
     from curiopilot.api.routes.sources import router as sources_router
     from curiopilot.api.routes.stats import router as stats_router
     from curiopilot.api.routes.email import router as email_router
+    from curiopilot.api.routes.health import router as health_router
     from curiopilot.api.routes.ui import router as ui_router
 
+    app.include_router(health_router, prefix="/api")
     app.include_router(briefings_router, prefix="/api")
     app.include_router(articles_router, prefix="/api")
     app.include_router(feedback_router, prefix="/api")

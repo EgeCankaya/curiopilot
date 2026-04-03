@@ -15,6 +15,8 @@ import StatsDashboard from '@/components/stats/StatsDashboard'
 import ObsidianBridgePage from '@/components/graph/ObsidianBridgePage'
 import SettingsPage from '@/components/settings/SettingsPage'
 import ComparisonPage from '@/components/compare/ComparisonPage'
+import DLQPanel from '@/components/dlq/DLQPanel'
+import KeyboardShortcutsModal from '@/components/layout/KeyboardShortcutsModal'
 import { useBookmarks } from '@/hooks/useBookmarks'
 import { useBriefings } from '@/hooks/useBriefings'
 import { useArticles } from '@/hooks/useArticles'
@@ -28,7 +30,7 @@ import { cn } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 
 type ArticleViewMode = 'web' | 'analysis'
-export type AppView = 'briefings' | 'stats' | 'graph' | 'settings' | 'compare'
+export type AppView = 'briefings' | 'stats' | 'graph' | 'settings' | 'compare' | 'dlq'
 
 export default function App() {
   const [activeView, setActiveView] = useState<AppView>('briefings')
@@ -36,6 +38,7 @@ export default function App() {
   const [selectedArticle, setSelectedArticle] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<ArticleViewMode>('analysis')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const isMobile = useMediaQuery('(max-width: 767px)')
 
@@ -59,6 +62,21 @@ export default function App() {
     onUpdateFeedback: updateFeedbackLocal,
     onTriggerRun: pipeline.start,
   })
+
+  // '?' key opens keyboard shortcuts modal
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const el = document.activeElement
+      const isInput = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')
+      if (isInput) return
+      if (e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen((o) => !o)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   // Auto-select latest briefing date on first load
   useEffect(() => {
@@ -120,6 +138,14 @@ export default function App() {
       return (
         <ContentPanel className="overflow-y-auto">
           <ComparisonPage />
+        </ContentPanel>
+      )
+    }
+
+    if (activeView === 'dlq') {
+      return (
+        <ContentPanel className="overflow-y-auto">
+          <DLQPanel />
         </ContentPanel>
       )
     }
@@ -254,6 +280,7 @@ export default function App() {
         <SearchBar onNavigate={handleSearchNavigate} />
       </Header>
       <PipelineProgress state={pipeline} onDismiss={pipeline.dismiss} />
+      <KeyboardShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
       <div className="flex min-h-0 flex-1">
         {renderMainContent()}

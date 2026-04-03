@@ -156,6 +156,10 @@ export function sendTestEmail(body: TestEmailRequest): Promise<TestEmailResponse
   })
 }
 
+export function sendBriefingEmail(date: string): Promise<TestEmailResponse> {
+  return fetchJSON(`${BASE}/email/send-briefing/${date}`, { method: 'POST' })
+}
+
 export function fetchAvailableModels(): Promise<{ models: { name: string; size: number; modified_at: string }[] }> {
   return fetchJSON(`${BASE}/config/models`)
 }
@@ -211,6 +215,55 @@ export function createCollection(name: string): Promise<{ status: string; id: nu
 
 export function deleteCollection(id: number): Promise<{ status: string }> {
   return fetchJSON(`${BASE}/collections/${id}`, { method: 'DELETE' })
+}
+
+// ── Dead Letter Queue ──────────────────────────────────────────────────────
+
+export interface DLQItem {
+  url: string
+  title: string | null
+  source_name: string | null
+  phase: string
+  error_type: string
+  error_message: string | null
+  failed_at: string
+  run_id: string | null
+  retry_count: number
+}
+
+export interface DLQStats {
+  total: number
+  by_phase: Record<string, number>
+  by_error_type: Record<string, number>
+}
+
+export function fetchDLQItems(): Promise<DLQItem[]> {
+  return fetchJSON(`${BASE}/dlq`)
+}
+
+export function fetchDLQStats(): Promise<DLQStats> {
+  return fetchJSON(`${BASE}/dlq/stats`)
+}
+
+export function removeDLQItem(url: string): Promise<{ status: string }> {
+  return fetchJSON(`${BASE}/dlq/${encodeURIComponent(url)}`, { method: 'DELETE' })
+}
+
+export function clearDLQ(): Promise<{ status: string }> {
+  return fetchJSON(`${BASE}/dlq`, { method: 'DELETE' })
+}
+
+// ── Health Check ───────────────────────────────────────────────────────────
+
+export interface HealthResponse {
+  status: string
+  database: string
+  ollama: string
+  briefings_count: number
+}
+
+export function fetchHealth(): Promise<HealthResponse> {
+  return fetchJSON(`${BASE}/health`)
 }
 
 export type ReaderResult = {

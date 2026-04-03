@@ -1,4 +1,4 @@
-import { Sun, Moon, Monitor, Menu, BarChart3, BookOpen, Network, Settings, GitCompareArrows } from 'lucide-react'
+import { Sun, Moon, Monitor, Menu, BarChart3, BookOpen, Network, Settings, GitCompareArrows, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AppView } from '@/App'
 
@@ -28,6 +28,7 @@ const navItems: { view: AppView; icon: typeof BarChart3; label: string }[] = [
   { view: 'graph', icon: Network, label: 'Graph' },
   { view: 'settings', icon: Settings, label: 'Settings' },
   { view: 'compare', icon: GitCompareArrows, label: 'Compare' },
+  { view: 'dlq', icon: AlertTriangle, label: 'DLQ' },
 ]
 
 export default function Header({

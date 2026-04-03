@@ -14,3 +14,10 @@ data/
 briefings/*.md
 obsidian-vault/
 .pytest_cache/
+
+# Personal Claude Code settings (local tool config, not project code)
+.claude/
+
+# Debug / scratch logs
+debug_*.log
+*.log

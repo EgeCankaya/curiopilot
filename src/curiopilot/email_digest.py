@@ -61,12 +61,14 @@ def _send_smtp(
     recipient_email: str,
     subject: str,
     html_body: str,
+    plaintext_body: str,
 ) -> None:
-    """Send an HTML email via SMTP with STARTTLS (blocking)."""
+    """Send an HTML email with plaintext fallback via SMTP with STARTTLS."""
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = sender_email
     msg["To"] = recipient_email
+    msg.attach(MIMEText(plaintext_body, "plain"))
     msg.attach(MIMEText(html_body, "html"))
 
     with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
@@ -85,11 +87,9 @@ async def send_briefing_email(
     """Render and send the briefing email. Runs SMTP in a thread."""
     password = password_override or os.environ.get("CURIOPILOT_SMTP_PASSWORD", "")
     if not password:
-        log.warning("No SMTP password available; skipping email send")
-        return
+        raise ValueError("CURIOPILOT_SMTP_PASSWORD environment variable is not set")
     if not email_config.sender_email:
-        log.warning("No sender email configured; skipping email send")
-        return
+        raise ValueError("No sender email configured in settings")
 
     subject = f"CurioPilot Briefing -- {briefing_date}"
     html_body = render_briefing_html(briefing_markdown)
@@ -103,5 +103,6 @@ async def send_briefing_email(
         recipient_email=email_config.recipient_email,
         subject=subject,
         html_body=html_body,
+        plaintext_body=briefing_markdown,
     )
     log.info("Briefing email sent to %s", email_config.recipient_email)
