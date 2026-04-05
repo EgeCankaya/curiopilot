@@ -36,6 +36,17 @@ def _slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
+def _has_cjk(text: str, threshold: float = 0.3) -> bool:
+    """Return True if more than *threshold* fraction of alpha chars are CJK."""
+    if not text:
+        return False
+    cjk_count = sum(1 for c in text if "\u4e00" <= c <= "\u9fff" or "\u3400" <= c <= "\u4dbf")
+    alpha_count = sum(1 for c in text if c.isalpha())
+    if alpha_count == 0:
+        return False
+    return cjk_count / alpha_count > threshold
+
+
 # ── Pipeline State ───────────────────────────────────────────────────────────
 
 class PipelineState(TypedDict, total=False):
@@ -66,6 +77,7 @@ class PipelineState(TypedDict, total=False):
     # Filter phase
     passed: list[ScoredArticle]
     reserve_articles: list[ScoredArticle]  # Extra articles for reader-stage backfill
+    prefetch_cache: dict[str, str]  # URL → pre-fetched HTML from filter phase
 
     # Deep read phase
     summaries: list[ArticleSummary]
@@ -167,7 +179,6 @@ async def discover_node(state: PipelineState) -> dict:
     source_names = state.get("source_names")
     incremental = state.get("incremental", False)
 
-    _notify(cb, "discover", 0, 1)
     all_articles: list[ArticleEntry] = []
     sources = config.sources
     if source_names:
@@ -193,24 +204,37 @@ async def discover_node(state: PipelineState) -> dict:
 
     import httpx
 
-    for i, source in enumerate(sources):
+    _DISCOVER_BATCH_SIZE = 6
+    total = len(sources)
+    _notify(cb, "discover", 0, total)
+
+    async def _scrape_one(source: object, idx: int) -> list:
         if source.name in skip_sources:
             log.info("Incremental: skipping source '%s'", source.name)
-            _notify(cb, "discover", i + 1, len(sources))
-            continue
-
+            _notify(cb, "discover", idx + 1, total)
+            return []
         try:
             scraper = get_scraper(source)
             articles = await scraper.extract_articles()
             log.info("Source '%s': fetched %d articles", source.name, len(articles))
-            all_articles.extend(articles)
             # Record source run for incremental tracking
             await store.record_source_run(source.name, len(articles))
+            return articles
         except (httpx.HTTPError, asyncio.TimeoutError) as exc:
             log.warning("Source '%s' failed due to network error: %s", source.name, exc)
         except Exception:
             log.exception("Source '%s' failed unexpectedly, skipping", source.name)
-        _notify(cb, "discover", i + 1, len(sources))
+        finally:
+            _notify(cb, "discover", idx + 1, total)
+        return []
+
+    for batch_start in range(0, total, _DISCOVER_BATCH_SIZE):
+        batch = sources[batch_start : batch_start + _DISCOVER_BATCH_SIZE]
+        batch_results = await asyncio.gather(
+            *[_scrape_one(s, batch_start + i) for i, s in enumerate(batch)]
+        )
+        for articles in batch_results:
+            all_articles.extend(articles)
 
     return {"all_articles": all_articles}
 
@@ -235,6 +259,16 @@ async def dedup_node(state: PipelineState) -> dict:
         "Dedup: %d scanned -> %d new (skipped %d already visited)",
         len(all_articles), len(new_articles), len(all_articles) - len(new_articles),
     )
+
+    # Drop articles with predominantly CJK (Chinese) titles/snippets
+    pre_cjk = len(new_articles)
+    new_articles = [
+        a for a in new_articles
+        if not _has_cjk(a.title) and not _has_cjk(a.snippet or "")
+    ]
+    cjk_dropped = pre_cjk - len(new_articles)
+    if cjk_dropped:
+        log.info("CJK filter: dropped %d article(s) with Chinese-language content", cjk_dropped)
     _notify(cb, "dedup", 1, 1)
 
     if dry_run:
@@ -361,7 +395,43 @@ async def filter_node(state: PipelineState) -> dict:
     passed = passed[:max_items]
     log.info("Filter: %d passed (capped to %d), %d reserve", len(passed), max_items, len(reserve))
 
-    return {"passed": passed, "reserve_articles": reserve, "dlq_failures": dlq_failures}
+    # Pre-fetch article HTML in the background while model swap happens.
+    # Uses httpx only (lightweight, no Playwright) — deep_read will skip its
+    # own fetch for any URL that lands in the cache.
+    import asyncio
+
+    from curiopilot.utils.fetch import _fetch_httpx, is_bot_challenge
+
+    prefetch_cache: dict[str, str] = {}
+
+    async def _prefetch(url: str) -> None:
+        try:
+            html = await asyncio.wait_for(
+                _fetch_httpx(url),
+                timeout=config.ollama.fetch_timeout_seconds,
+            )
+            if html and len(html) > 500 and not is_bot_challenge(html):
+                prefetch_cache[url] = html
+        except Exception:
+            pass  # deep_read will retry normally
+
+    prefetch_tasks = [
+        asyncio.create_task(_prefetch(sa.article.url))
+        for sa in passed
+    ]
+
+    # Wait briefly — tasks run concurrently during model swap anyway, but
+    # gather here so the cache dict is populated before state is returned.
+    if prefetch_tasks:
+        await asyncio.gather(*prefetch_tasks, return_exceptions=True)
+        log.info("Prefetch: %d/%d articles cached via httpx", len(prefetch_cache), len(passed))
+
+    return {
+        "passed": passed,
+        "reserve_articles": reserve,
+        "dlq_failures": dlq_failures,
+        "prefetch_cache": prefetch_cache,
+    }
 
 
 async def swap_to_reader_node(state: PipelineState) -> dict:
@@ -402,6 +472,8 @@ async def deep_read_node(state: PipelineState) -> dict:
     def _reader_progress(current: int, total: int) -> None:
         _notify(cb, "read", current, total)
 
+    prefetch_cache = state.get("prefetch_cache") or {}
+
     _notify(cb, "read", 0, len(passed))
     summaries = await read_and_summarize(
         passed, config, client,
@@ -410,6 +482,7 @@ async def deep_read_node(state: PipelineState) -> dict:
         fetch_concurrency=config.ollama.fetch_concurrency,
         llm_concurrency=config.ollama.llm_concurrency,
         failures=failures,
+        prefetch_cache=prefetch_cache,
     )
 
     # Record failures in DLQ

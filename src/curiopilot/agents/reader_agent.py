@@ -177,6 +177,7 @@ async def _process_one_article(
     config: AppConfig,
     client: OllamaClient,
     breaker: object | None,
+    prefetch_cache: dict[str, str] | None = None,
 ) -> ArticleSummary | ReaderFailure:
     """Fetch and summarize a single article with bounded concurrency."""
     import random
@@ -185,36 +186,41 @@ async def _process_one_article(
 
     article = sa.article
 
-    # ── Fetch phase (bounded by fetch_sem) ──
-    html = None
-    async with fetch_sem:
-        try:
-            html = await asyncio.wait_for(
-                fetch_article_html(article.url, context=context_holder["ctx"]),
-                timeout=config.ollama.fetch_timeout_seconds,
-            )
-        except asyncio.TimeoutError:
-            log.warning("Fetch timeout for %s", article.url)
+    # ── Check prefetch cache (skip fetch_sem entirely if hit) ──
+    html = (prefetch_cache or {}).get(article.url)
+    if html:
+        log.info("Prefetch cache hit for %s", article.url)
 
-        if html is None:
-            # Rotate context and retry
-            async with context_lock:
-                try:
-                    await context_holder["ctx"].close()
-                    context_holder["ctx"] = await create_stealth_context(browser)
-                except Exception:
-                    pass
-            await asyncio.sleep(random.uniform(3.0, 6.0))
+    # ── Fetch phase (bounded by fetch_sem) ──
+    if html is None:
+        async with fetch_sem:
             try:
                 html = await asyncio.wait_for(
                     fetch_article_html(article.url, context=context_holder["ctx"]),
                     timeout=config.ollama.fetch_timeout_seconds,
                 )
             except asyncio.TimeoutError:
-                log.warning("Fetch retry timeout for %s", article.url)
+                log.warning("Fetch timeout for %s", article.url)
 
-        # Add polite delay
-        await asyncio.sleep(random.uniform(2.0, 5.0))
+            if html is None:
+                # Rotate context and retry
+                async with context_lock:
+                    try:
+                        await context_holder["ctx"].close()
+                        context_holder["ctx"] = await create_stealth_context(browser)
+                    except Exception:
+                        pass
+                await asyncio.sleep(random.uniform(3.0, 6.0))
+                try:
+                    html = await asyncio.wait_for(
+                        fetch_article_html(article.url, context=context_holder["ctx"]),
+                        timeout=config.ollama.fetch_timeout_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    log.warning("Fetch retry timeout for %s", article.url)
+
+            # Add polite delay
+            await asyncio.sleep(random.uniform(2.0, 5.0))
 
     if html is None:
         return ReaderFailure(
@@ -286,6 +292,7 @@ async def read_and_summarize(
     fetch_concurrency: int = 1,
     llm_concurrency: int = 1,
     failures: list[ReaderFailure] | None = None,
+    prefetch_cache: dict[str, str] | None = None,
 ) -> list[ArticleSummary]:
     """Fetch, extract, and summarize articles with optional concurrency.
 
@@ -309,6 +316,7 @@ async def read_and_summarize(
         result = await _process_one_article(
             sa, context_holder, context_lock, browser,
             fetch_sem, llm_sem, config, client, breaker,
+            prefetch_cache=prefetch_cache,
         )
         async with progress_lock:
             completed += 1

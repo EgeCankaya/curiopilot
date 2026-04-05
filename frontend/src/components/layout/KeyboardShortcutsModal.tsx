@@ -8,8 +8,6 @@ interface Props {
 const shortcuts = [
   { key: 'j', description: 'Next article' },
   { key: 'k', description: 'Previous article' },
-  { key: 'w', description: 'Switch to Web view' },
-  { key: 'a', description: 'Switch to Analysis view' },
   { key: 'r', description: 'Toggle read status' },
   { key: '1-5', description: 'Set interest rating' },
   { key: 'Shift+R', description: 'Trigger pipeline run' },

@@ -63,7 +63,7 @@ FastAPI server (src/curiopilot/api/)
 SQLite + ChromaDB + JSON files (./data/)
 ```
 
-**Pipeline** (`curiopilot run`): Scrape → Deduplicate → Filter (7B) → Read (14B) → Novelty score → Generate briefing. Orchestrated via LangGraph StateGraph in `pipeline/graph.py` with checkpoint/resume support. Failed articles go to a dead letter queue (DLQ).
+**Pipeline** (`curiopilot run`): Scrape → Deduplicate → Filter (7B) → Read (14B) → Novelty score → Generate briefing. Orchestrated via LangGraph StateGraph in `pipeline/graph.py` with checkpoint/resume support. Failed articles go to a dead letter queue (DLQ). Discovery runs scrapers in concurrent batches (6 at a time). Filter pre-fetches article HTML via httpx so deep-read can skip fetching on cache hits. Novelty scoring uses batched ChromaDB operations (`query_batch`/`add_batch`) instead of per-article serialized access.
 
 | Path | Purpose |
 |------|---------|

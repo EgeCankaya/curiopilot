@@ -6,7 +6,6 @@ import BriefingList from '@/components/briefings/BriefingList'
 import ArticleList from '@/components/articles/ArticleList'
 import BriefingOverview from '@/components/briefings/BriefingOverview'
 import ArticleView from '@/components/articles/ArticleView'
-import ArticleWebView from '@/components/articles/ArticleWebView'
 import AnalysisSection from '@/components/articles/AnalysisSection'
 import FeedbackControls from '@/components/feedback/FeedbackControls'
 import PipelineProgress from '@/components/pipeline/PipelineProgress'
@@ -27,16 +26,15 @@ import { useTheme } from '@/hooks/useTheme'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useKeyboardNav } from '@/hooks/useKeyboardNav'
 import { cn } from '@/lib/utils'
-import { Loader2 } from 'lucide-react'
+import { openReaderWindow } from '@/lib/api'
+import { AppWindow, Loader2 } from 'lucide-react'
 
-type ArticleViewMode = 'web' | 'analysis'
 export type AppView = 'briefings' | 'stats' | 'graph' | 'settings' | 'compare' | 'dlq'
 
 export default function App() {
   const [activeView, setActiveView] = useState<AppView>('briefings')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<number | null>(null)
-  const [viewMode, setViewMode] = useState<ArticleViewMode>('analysis')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { theme, setTheme } = useTheme()
@@ -56,8 +54,6 @@ export default function App() {
     selectedArticle,
     onSelectArticle: setSelectedArticle,
     selectedDate,
-    viewMode,
-    onSetViewMode: setViewMode,
     feedback,
     onUpdateFeedback: updateFeedbackLocal,
     onTriggerRun: pipeline.start,
@@ -84,10 +80,6 @@ export default function App() {
       setSelectedDate(briefings[0].briefing_date)
     }
   }, [briefings, selectedDate])
-
-  useEffect(() => {
-    setViewMode('analysis')
-  }, [selectedArticle])
 
   // Close sidebar on mobile when not needed
   useEffect(() => {
@@ -192,73 +184,46 @@ export default function App() {
         )}
         {selectedDate && selectedArticle && (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex shrink-0 gap-1 border-b border-border bg-bg-primary px-6 pt-3 md:px-8">
+            <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg-primary px-6 pt-3 md:px-8">
               <button
                 type="button"
-                onClick={() => setViewMode('web')}
-                className={cn(
-                  'rounded-t-lg px-4 py-2 text-sm font-medium transition-colors',
-                  viewMode === 'web'
-                    ? 'bg-bg-elevated text-text-primary shadow-sm'
-                    : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary',
-                )}
-              >
-                Web
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('analysis')}
-                className={cn(
-                  'rounded-t-lg px-4 py-2 text-sm font-medium transition-colors',
-                  viewMode === 'analysis'
-                    ? 'bg-bg-elevated text-text-primary shadow-sm'
-                    : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary',
-                )}
+                className="rounded-t-lg px-4 py-2 text-sm font-medium transition-colors bg-bg-elevated text-text-primary shadow-sm"
               >
                 Analysis
               </button>
+              <button
+                type="button"
+                onClick={() => { if (article) void openReaderWindow(article.url, article.title) }}
+                className="ml-1 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
+              >
+                <AppWindow className="h-4 w-4" />
+                App Window
+              </button>
             </div>
-            {viewMode === 'web' ? (
-              <ContentPanel flush className="min-h-0">
-                {articleLoading && (
-                  <div className="flex flex-1 items-center justify-center gap-2 py-12 text-text-muted">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span>Loading article…</span>
-                  </div>
-                )}
-                {articleError && (
-                  <p className="p-8 text-danger">{articleError}</p>
-                )}
-                {article && !articleLoading && !articleError && (
-                  <ArticleWebView url={article.url} title={article.title} />
-                )}
-              </ContentPanel>
-            ) : (
-              <ContentPanel className="min-h-0 overflow-y-auto">
-                <ArticleView
-                  article={article}
-                  loading={articleLoading}
-                  error={articleError}
-                  bookmarked={selectedDate && selectedArticle ? bookmarksHook.isBookmarked(selectedDate, selectedArticle) : false}
-                  onToggleBookmark={selectedDate && selectedArticle ? () => bookmarksHook.toggle(selectedDate, selectedArticle) : undefined}
-                />
-                {article && (
-                  <>
-                    <AnalysisSection
-                      article={article}
-                      defaultExpanded={!feedback.get(selectedArticle)?.read}
-                    />
-                    <FeedbackControls
-                      date={selectedDate}
-                      articleNumber={selectedArticle}
-                      articleUrl={article.url}
-                      feedback={feedback.get(selectedArticle)}
-                      onUpdate={(patch) => updateFeedbackLocal(selectedArticle, patch)}
-                    />
-                  </>
-                )}
-              </ContentPanel>
-            )}
+            <ContentPanel className="min-h-0 overflow-y-auto">
+              <ArticleView
+                article={article}
+                loading={articleLoading}
+                error={articleError}
+                bookmarked={selectedDate && selectedArticle ? bookmarksHook.isBookmarked(selectedDate, selectedArticle) : false}
+                onToggleBookmark={selectedDate && selectedArticle ? () => bookmarksHook.toggle(selectedDate, selectedArticle) : undefined}
+              />
+              {article && (
+                <>
+                  <AnalysisSection
+                    article={article}
+                    defaultExpanded={!feedback.get(selectedArticle)?.read}
+                  />
+                  <FeedbackControls
+                    date={selectedDate}
+                    articleNumber={selectedArticle}
+                    articleUrl={article.url}
+                    feedback={feedback.get(selectedArticle)}
+                    onUpdate={(patch) => updateFeedbackLocal(selectedArticle, patch)}
+                  />
+                </>
+              )}
+            </ContentPanel>
           </div>
         )}
       </>

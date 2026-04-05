@@ -90,6 +90,8 @@ async def send_briefing_email(
         raise ValueError("CURIOPILOT_SMTP_PASSWORD environment variable is not set")
     if not email_config.sender_email:
         raise ValueError("No sender email configured in settings")
+    if not email_config.recipient_email:
+        raise ValueError("No recipient email configured in settings")
 
     subject = f"CurioPilot Briefing -- {briefing_date}"
     html_body = render_briefing_html(briefing_markdown)

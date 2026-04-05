@@ -195,12 +195,14 @@ ollama:
   summarize_timeout_seconds: 180
   circuit_breaker_threshold: 10
   circuit_breaker_reset_seconds: 120
+  llm_concurrency: 4
+  fetch_concurrency: 6
 scoring:
   relevance_threshold: 5
   novelty_weight: 0.6
   relevance_weight: 0.4
   min_briefing_items: 5
-  max_briefing_items: 15
+  max_briefing_items: 10
   near_duplicate_threshold: 0.92
   related_threshold: 0.75
   vector_novelty_weight: 0.5
@@ -218,5 +220,5 @@ email:
   enabled: false
   smtp_host: smtp.gmail.com
   smtp_port: 587
-  sender_email: ""
-  recipient_email: ""
+  sender_email: egemencankaya14@gmail.com
+  recipient_email: 'egemencankaya14@gmail.com'

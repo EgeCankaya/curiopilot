@@ -94,3 +94,62 @@ class VectorStore:
             })
 
         return items
+
+    def query_batch(
+        self,
+        embeddings: list[list[float]],
+        k: int = 5,
+    ) -> list[list[dict[str, Any]]]:
+        """Query multiple embeddings in a single ChromaDB call."""
+        n_existing = self.collection.count()
+        if n_existing == 0:
+            return [[] for _ in embeddings]
+
+        actual_k = min(k, n_existing)
+        results = self.collection.query(
+            query_embeddings=embeddings,
+            n_results=actual_k,
+            include=["distances", "metadatas", "documents"],
+        )
+
+        all_items: list[list[dict[str, Any]]] = []
+        for row_idx in range(len(embeddings)):
+            ids = results.get("ids", [[]])[row_idx]
+            distances = results.get("distances", [[]])[row_idx]
+            metadatas = (results.get("metadatas") or [[]])[row_idx]
+            documents = (results.get("documents") or [[]])[row_idx]
+            items = []
+            for i, doc_id in enumerate(ids):
+                items.append({
+                    "id": doc_id,
+                    "similarity": 1.0 - distances[i],
+                    "metadata": metadatas[i] if metadatas else {},
+                    "document": documents[i] if documents else "",
+                })
+            all_items.append(items)
+        return all_items
+
+    def add_batch(
+        self,
+        doc_ids: list[str],
+        embeddings: list[list[float]],
+        metadatas: list[dict[str, Any]],
+        documents: list[str],
+    ) -> None:
+        """Upsert multiple embeddings in a single ChromaDB call."""
+        # Guard: ChromaDB rejects duplicate IDs within a single upsert call
+        seen_ids: dict[str, int] = {}
+        for i, doc_id in enumerate(doc_ids):
+            seen_ids[doc_id] = i
+        if len(seen_ids) < len(doc_ids):
+            keep = sorted(seen_ids.values())
+            doc_ids = [doc_ids[i] for i in keep]
+            embeddings = [embeddings[i] for i in keep]
+            metadatas = [metadatas[i] for i in keep]
+            documents = [documents[i] for i in keep]
+        self.collection.upsert(
+            ids=doc_ids,
+            embeddings=embeddings,
+            metadatas=metadatas,
+            documents=documents,
+        )

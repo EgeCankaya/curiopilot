@@ -7,8 +7,6 @@ interface KeyboardNavOptions {
   selectedArticle: number | null
   onSelectArticle: (num: number | null) => void
   selectedDate: string | null
-  viewMode: 'web' | 'analysis'
-  onSetViewMode: (mode: 'web' | 'analysis') => void
   feedback: Map<number, FeedbackItem>
   onUpdateFeedback: (articleNumber: number, patch: Partial<FeedbackItem>) => void
   onTriggerRun: () => void
@@ -26,8 +24,6 @@ export function useKeyboardNav({
   selectedArticle,
   onSelectArticle,
   selectedDate,
-  viewMode,
-  onSetViewMode,
   feedback,
   onUpdateFeedback,
   onTriggerRun,
@@ -54,12 +50,6 @@ export function useKeyboardNav({
           onSelectArticle(articleNumbers[prevIdx])
           break
         }
-        case 'w':
-          onSetViewMode('web')
-          break
-        case 'a':
-          onSetViewMode('analysis')
-          break
         case 'r': {
           if (!selectedDate || selectedArticle == null) return
           const fb = feedback.get(selectedArticle)
@@ -96,5 +86,5 @@ export function useKeyboardNav({
 
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [articles, selectedArticle, selectedDate, viewMode, feedback, onSelectArticle, onSetViewMode, onUpdateFeedback, onTriggerRun])
+  }, [articles, selectedArticle, selectedDate, feedback, onSelectArticle, onUpdateFeedback, onTriggerRun])
 }

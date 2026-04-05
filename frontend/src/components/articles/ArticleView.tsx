@@ -1,9 +1,7 @@
-import { useState } from 'react'
 import type { ArticleFull } from '@/types'
 import ArticleBody from './ArticleBody'
 import BookmarkButton from '@/components/bookmarks/BookmarkButton'
-import { AppWindow, ExternalLink, Loader2 } from 'lucide-react'
-import { openReaderWindow } from '@/lib/api'
+import { ExternalLink, Loader2 } from 'lucide-react'
 
 interface ArticleViewProps {
   article: ArticleFull | null
@@ -67,7 +65,15 @@ export default function ArticleView({ article, loading, error, bookmarked, onTog
               ↩ Deepening
             </span>
           )}
-          <AppWindowAction url={article.url} title={article.title} />
+          <a
+            href={article.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
+          >
+            <span>Original</span>
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
 
         {article.novelty_explanation && (
@@ -88,47 +94,6 @@ export default function ArticleView({ article, loading, error, bookmarked, onTog
         <FallbackBody article={article} />
       )}
     </article>
-  )
-}
-
-function AppWindowAction({ url, title }: { url: string; title: string }) {
-  const [hint, setHint] = useState<string | null>(null)
-
-  const handleClick = async () => {
-    setHint(null)
-    const res = await openReaderWindow(url, title)
-    if (res.opened) {
-      setHint('Opened in reader window')
-    } else if (res.reason === 'bridge_unavailable') {
-      window.open(url, '_blank', 'noopener,noreferrer')
-    } else {
-      setHint(`Could not open reader (${res.reason}) — try opening externally`)
-    }
-  }
-
-  return (
-    <div className="ml-auto flex items-center gap-3">
-      <button
-        type="button"
-        onClick={handleClick}
-        className="flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
-      >
-        <AppWindow className="h-3.5 w-3.5" />
-        <span>App window</span>
-      </button>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-1 text-accent transition-all duration-200 hover:text-accent-hover"
-      >
-        <span>Original</span>
-        <ExternalLink className="h-3.5 w-3.5" />
-      </a>
-      {hint && (
-        <span className="text-xs text-text-muted">{hint}</span>
-      )}
-    </div>
   )
 }
 

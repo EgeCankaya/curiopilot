@@ -101,7 +101,9 @@ class TestScoreNovelty:
 
         vector_store = MagicMock()
         vector_store.query_similar.return_value = []
+        vector_store.query_batch.return_value = [[]]
         vector_store.add = MagicMock()
+        vector_store.add_batch = MagicMock()
 
         kg = KnowledgeGraph(tmp_path / "kg.json")
         kg.load()
