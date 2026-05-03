@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
 
 from langgraph.graph import END
 
+from curiopilot.models import ArticleEntry
 from curiopilot.pipeline.graph import (
     _should_stop_after_dedup,
     _should_stop_after_filter,
     _should_stop_after_read,
     build_pipeline_graph,
+    dedup_node,
 )
+from curiopilot.storage.url_store import URLStore
 
 
 class TestShouldStopAfterDedup:
@@ -54,6 +60,39 @@ class TestShouldStopAfterRead:
     def test_has_summaries_returns_novelty(self) -> None:
         state = {"summaries": [1]}
         assert _should_stop_after_read(state) == "novelty"
+
+
+class TestDedupNodeCollapsesInBatchDuplicates:
+    @pytest.mark.asyncio
+    async def test_same_url_from_multiple_sources_kept_once(self, tmp_path: Path) -> None:
+        store = URLStore(tmp_path / "test.db")
+        await store.open()
+        try:
+            url = "https://arxiv.org/abs/2604.25917v1"
+            articles = [
+                ArticleEntry(title="RecursiveMAS", url=url, source_name="ArXiv NLP"),
+                ArticleEntry(title="RecursiveMAS", url=url, source_name="ArXiv ML"),
+                ArticleEntry(title="RecursiveMAS", url=url, source_name="ArXiv AI"),
+                ArticleEntry(title="Other", url="https://example.com/x", source_name="HN"),
+            ]
+            config = SimpleNamespace(
+                scoring=SimpleNamespace(dedup_window_days=0, briefed_dedup_window_days=0)
+            )
+            state = {
+                "config": config,
+                "store": store,
+                "all_articles": articles,
+                "dry_run": False,
+            }
+
+            result = await dedup_node(state)
+
+            new = result["new_articles"]
+            assert len(new) == 2
+            assert new[0].source_name == "ArXiv NLP"  # first occurrence wins
+            assert {a.url for a in new} == {url, "https://example.com/x"}
+        finally:
+            await store.close()
 
 
 class TestBuildPipelineGraph:

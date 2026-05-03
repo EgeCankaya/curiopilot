@@ -254,7 +254,19 @@ async def dedup_node(state: PipelineState) -> dict:
         dedup_window_days=config.scoring.dedup_window_days,
         briefed_dedup_window_days=config.scoring.briefed_dedup_window_days,
     )
-    new_articles = [a for a in all_articles if a.url in new_urls]
+    seen: set[str] = set()
+    new_articles: list[ArticleEntry] = []
+    in_batch_dups = 0
+    for a in all_articles:
+        if a.url not in new_urls:
+            continue
+        if a.url in seen:
+            in_batch_dups += 1
+            continue
+        seen.add(a.url)
+        new_articles.append(a)
+    if in_batch_dups:
+        log.info("Dedup: collapsed %d in-batch duplicate URL(s)", in_batch_dups)
     log.info(
         "Dedup: %d scanned -> %d new (skipped %d already visited)",
         len(all_articles), len(new_articles), len(all_articles) - len(new_articles),
