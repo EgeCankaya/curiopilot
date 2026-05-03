@@ -1,21 +1,27 @@
 import { useState } from 'react'
-import type { BriefingDetail } from '@/types'
-import { BarChart3, BookOpen, Clock, Filter, Lightbulb, Network, Compass, RefreshCw, Mail } from 'lucide-react'
+import type { BriefingDetail, FeedbackItem } from '@/types'
+import { BarChart3, BookOpen, Clock, Filter, Lightbulb, Compass, RefreshCw, Mail, ChevronDown } from 'lucide-react'
 import { sendBriefingEmail } from '@/lib/api'
+import TopPicks from './TopPicks'
+import ReadingProgress from './ReadingProgress'
+import SourceBreakdown from './SourceBreakdown'
+import TopicDistribution from './TopicDistribution'
 
 interface BriefingOverviewProps {
   detail: BriefingDetail
   onRerun?: (date: string) => void
   isRunning?: boolean
+  feedback: Map<number, FeedbackItem>
+  onSelectArticle: (articleNumber: number) => void
 }
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number | null }) {
   if (value == null) return null
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-bg-elevated p-4 shadow-md shadow-border-subtle/30">
+    <div className="flex items-center gap-3 rounded-2xl border border-border-subtle/60 bg-bg-card p-4">
       <div className="text-accent">{icon}</div>
       <div>
-        <div className="text-lg font-semibold text-text-primary">{value}</div>
+        <div className="text-lg font-semibold text-text-primary tabular-nums">{value}</div>
         <div className="text-xs text-text-muted">{label}</div>
       </div>
     </div>
@@ -27,11 +33,11 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-export default function BriefingOverview({ detail, onRerun, isRunning }: BriefingOverviewProps) {
-  const graphStats = detail.graph_stats as Record<string, unknown> | null
+export default function BriefingOverview({ detail, onRerun, isRunning, feedback, onSelectArticle }: BriefingOverviewProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [emailDetail, setEmailDetail] = useState('')
+  const [conceptsOpen, setConceptsOpen] = useState(false)
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const isToday = detail.briefing_date === todayStr
@@ -60,7 +66,7 @@ export default function BriefingOverview({ detail, onRerun, isRunning }: Briefin
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-text-primary">
+          <h2 className="text-2xl font-bold tracking-tight text-text-primary">
             {formatDate(detail.briefing_date)}
           </h2>
           <p className="mt-1 text-sm text-text-secondary">
@@ -74,20 +80,22 @@ export default function BriefingOverview({ detail, onRerun, isRunning }: Briefin
                 type="button"
                 onClick={handleRerunClick}
                 disabled={isRunning}
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+                aria-label="Re-run today's briefing"
+                className="flex items-center gap-1.5 rounded-lg border border-border-subtle/60 bg-bg-card px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                Re-run
+                <span className="hidden md:inline">Re-run</span>
               </button>
             )}
             <button
               type="button"
               onClick={handleSendEmail}
               disabled={emailState === 'sending'}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+              aria-label="Send briefing email"
+              className="flex items-center gap-1.5 rounded-lg border border-border-subtle/60 bg-bg-card px-3 py-1.5 text-sm text-text-secondary transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
             >
               <Mail className="h-3.5 w-3.5" />
-              {emailState === 'sending' ? 'Sending…' : 'Send Email'}
+              <span className="hidden md:inline">{emailState === 'sending' ? 'Sending…' : 'Send Email'}</span>
             </button>
           </div>
           {emailState !== 'idle' && (
@@ -148,55 +156,61 @@ export default function BriefingOverview({ detail, onRerun, isRunning }: Briefin
         />
       </div>
 
-      {/* New Concepts */}
+      {/* Top picks */}
+      <TopPicks articles={detail.articles} onSelectArticle={onSelectArticle} />
+
+      {/* Reading progress */}
+      <ReadingProgress total={detail.articles.length} feedback={feedback} />
+
+      {/* Sources */}
+      <SourceBreakdown articles={detail.articles} />
+
+      {/* Topics */}
+      <TopicDistribution articles={detail.articles} />
+
+      {/* New Concepts (collapsed by default) */}
       {detail.new_concepts.length > 0 && (
         <section>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-text-muted">
-            <Lightbulb className="h-4 w-4 text-warning" />
-            New Concepts
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {detail.new_concepts.map((concept) => (
-              <span
-                key={concept}
-                className="rounded-full bg-warning/10 px-3 py-1 text-sm text-warning"
-              >
-                {concept}
+          <button
+            type="button"
+            onClick={() => setConceptsOpen((o) => !o)}
+            aria-expanded={conceptsOpen}
+            className="flex w-full items-center justify-between rounded-2xl border border-border-subtle/60 bg-bg-card px-4 py-3 text-left transition-colors hover:bg-bg-hover/40"
+          >
+            <span className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
+              <Lightbulb className="h-3.5 w-3.5 text-text-muted" />
+              New concepts
+              <span className="rounded-full bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-muted tabular-nums">
+                {detail.new_concepts.length}
               </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Graph Stats */}
-      {graphStats && (
-        <section>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-text-muted">
-            <Network className="h-4 w-4 text-accent" />
-            Knowledge Graph Update
-          </h3>
-          <div className="rounded-2xl bg-bg-elevated p-4 text-sm text-text-secondary shadow-md shadow-border-subtle/30">
-            {graphStats.nodes_before != null && (
-              <p>Nodes: {String(graphStats.nodes_before)} → {String(graphStats.nodes_after)}</p>
-            )}
-            {graphStats.edges_before != null && (
-              <p>Edges: {String(graphStats.edges_before)} → {String(graphStats.edges_after)}</p>
-            )}
-            {graphStats.new_concepts != null && Array.isArray(graphStats.new_concepts) && (
-              <p className="mt-1">New: {(graphStats.new_concepts as string[]).join(', ')}</p>
-            )}
-          </div>
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 text-text-muted transition-transform ${conceptsOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {conceptsOpen && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {detail.new_concepts.map((concept) => (
+                <span
+                  key={concept}
+                  className="rounded-full border border-warning/30 bg-warning/5 px-2.5 py-0.5 text-xs text-warning/90"
+                >
+                  {concept}
+                </span>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
       {/* Explorations */}
       {detail.explorations.length > 0 && (
         <section>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-text-muted">
-            <Compass className="h-4 w-4 text-success" />
-            Suggested Explorations
+          <h3 className="mb-2 flex items-center gap-2 text-[13px] font-medium text-text-secondary">
+            <Compass className="h-3.5 w-3.5 text-text-muted" />
+            Suggested explorations
           </h3>
-          <ul className="space-y-1.5">
+          <ul className="space-y-1.5 rounded-2xl border border-border-subtle/60 bg-bg-card px-4 py-3">
             {detail.explorations.map((exp, i) => (
               <li
                 key={i}

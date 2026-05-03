@@ -26,6 +26,7 @@ The pipeline is orchestrated as a [LangGraph](https://github.com/langchain-ai/la
 - **Two-stage LLM filtering** — fast 7B model for relevance, 14B model for deep reading and summarization
 - **Novelty detection** — ChromaDB embeddings surface genuinely new information, not rehashes
 - **Knowledge graph** — builds a persistent NetworkX graph of entities and relationships across articles
+- **Briefing overview dashboard** — Apple-style dark UI with top picks, reading progress, source breakdown, topic distribution, and collapsible new-concepts list
 - **Bookmarks & collections** — save and organize articles you want to revisit
 - **Briefing comparison** — compare briefings across dates to spot trends
 - **Obsidian export** — push articles into your Obsidian vault

@@ -179,6 +179,8 @@ export default function App() {
               detail={detail}
               onRerun={pipeline.rerun}
               isRunning={pipeline.isRunning}
+              feedback={feedback}
+              onSelectArticle={handleSelectArticle}
             />
           </ContentPanel>
         )}
@@ -197,7 +199,7 @@ export default function App() {
                 className="ml-1 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
               >
                 <AppWindow className="h-4 w-4" />
-                App Window
+                Open in Window
               </button>
             </div>
             <ContentPanel className="min-h-0 overflow-y-auto">

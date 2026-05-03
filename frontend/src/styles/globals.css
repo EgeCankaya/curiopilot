@@ -17,6 +17,7 @@
   --color-bg-secondary: #1C1C1E;
   --color-bg-tertiary: #2C2C2E;
   --color-bg-elevated: #2C2C2E;
+  --color-bg-card: #1C1C1E;
   --color-bg-hover: #3A3A3C;
   --color-bg-active: #48484A;
   --color-border: #38383A;
@@ -36,6 +37,7 @@
   --color-bg-secondary: #F5F5F7;
   --color-bg-tertiary: #E8E8ED;
   --color-bg-elevated: #FFFFFF;
+  --color-bg-card: #FAFAFA;
   --color-bg-hover: #E8E8ED;
   --color-bg-active: #D1D1D6;
   --color-border: #D1D1D6;
