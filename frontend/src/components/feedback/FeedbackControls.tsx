@@ -11,6 +11,52 @@ interface FeedbackControlsProps {
   onUpdate: (patch: Partial<FeedbackItem>) => void
 }
 
+interface SegmentProps<T> {
+  value: T
+  selected: T | null | undefined
+  onChange: (v: T) => void
+  children: React.ReactNode
+  selectedTone?: 'accent' | 'success' | 'danger' | 'warning' | 'muted'
+}
+
+function Segment<T extends string | number | boolean>({
+  value,
+  selected,
+  onChange,
+  children,
+  selectedTone = 'accent',
+}: SegmentProps<T>) {
+  const isOn = selected === value
+  const tone = {
+    accent: 'bg-accent text-white',
+    success: 'bg-success/20 text-success',
+    danger: 'bg-danger/20 text-danger',
+    warning: 'bg-warning/20 text-warning',
+    muted: 'bg-bg-hover text-text-primary',
+  }[selectedTone]
+
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(value)}
+      className={cn(
+        'flex flex-1 items-center justify-center gap-1 rounded-md px-2.5 py-1 text-sm transition-colors duration-150',
+        isOn ? tone : 'text-text-muted hover:text-text-primary',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function SegmentedGroup({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex gap-0.5 rounded-lg border border-border-subtle/60 bg-bg-tertiary p-0.5">
+      {children}
+    </div>
+  )
+}
+
 export default function FeedbackControls({
   date,
   articleNumber,
@@ -34,126 +80,69 @@ export default function FeedbackControls({
   }
 
   return (
-    <div className="mt-6 space-y-4 rounded-2xl border border-border bg-bg-elevated p-5 shadow-md shadow-border-subtle/30">
-      <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Your Feedback
+    <div className="mt-6 space-y-4 rounded-2xl border border-border-subtle/60 bg-bg-card p-5">
+      <h4 className="text-[13px] font-medium text-text-secondary">
+        Your feedback
       </h4>
 
-      {/* Read toggle */}
+      {/* Read */}
       <div className="flex items-center gap-3">
-        <span className="w-16 text-sm text-text-muted">Read:</span>
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => handleRead(true)}
-            className={cn(
-              'rounded-xl px-3 py-1 text-sm transition-all duration-200',
-              feedback?.read === true
-                ? 'bg-success/20 text-success'
-                : 'bg-bg-tertiary text-text-muted hover:text-text-primary',
-            )}
-          >
+        <span className="w-16 shrink-0 text-sm text-text-muted">Read</span>
+        <SegmentedGroup>
+          <Segment value={true} selected={feedback?.read} onChange={handleRead} selectedTone="success">
             Yes
-          </button>
-          <button
-            onClick={() => handleRead(false)}
-            className={cn(
-              'rounded-xl px-3 py-1 text-sm transition-all duration-200',
-              feedback?.read === false
-                ? 'bg-danger/20 text-danger'
-                : 'bg-bg-tertiary text-text-muted hover:text-text-primary',
-            )}
-          >
+          </Segment>
+          <Segment value={false} selected={feedback?.read} onChange={handleRead} selectedTone="danger">
             No
-          </button>
-        </div>
+          </Segment>
+        </SegmentedGroup>
       </div>
 
-      {/* Interest 1-5 */}
+      {/* Interest */}
       <div className="flex items-center gap-3">
-        <span className="w-16 text-sm text-text-muted">Interest:</span>
-        <div className="flex gap-1.5">
+        <span className="w-16 shrink-0 text-sm text-text-muted">Interest</span>
+        <SegmentedGroup>
           {[1, 2, 3, 4, 5].map((n) => (
-            <button
-              key={n}
-              onClick={() => handleInterest(n)}
-              className={cn(
-                'h-8 w-8 rounded-xl text-sm font-medium transition-all duration-200',
-                feedback?.interest === n
-                  ? 'bg-accent text-white'
-                  : 'bg-bg-tertiary text-text-muted hover:text-text-primary',
-              )}
-            >
-              {n}
-            </button>
+            <Segment key={n} value={n} selected={feedback?.interest} onChange={handleInterest}>
+              <span className="tabular-nums">{n}</span>
+            </Segment>
           ))}
-        </div>
+        </SegmentedGroup>
       </div>
 
       {/* Quality */}
       <div className="flex items-center gap-3">
-        <span className="w-16 text-sm text-text-muted">Quality:</span>
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => handleQuality('like')}
-            className={cn(
-              'flex items-center gap-1 rounded-xl px-3 py-1 text-sm transition-all duration-200',
-              feedback?.quality === 'like'
-                ? 'bg-success/20 text-success'
-                : 'bg-bg-tertiary text-text-muted hover:text-text-primary',
-            )}
-          >
+        <span className="w-16 shrink-0 text-sm text-text-muted">Quality</span>
+        <SegmentedGroup>
+          <Segment value="like" selected={feedback?.quality} onChange={handleQuality} selectedTone="success">
             <ThumbsUp className="h-3.5 w-3.5" />
-            Like
-          </button>
-          <button
-            onClick={() => handleQuality('meh')}
-            className={cn(
-              'flex items-center gap-1 rounded-xl px-3 py-1 text-sm transition-all duration-200',
-              feedback?.quality === 'meh'
-                ? 'bg-text-muted/20 text-text-secondary'
-                : 'bg-bg-tertiary text-text-muted hover:text-text-primary',
-            )}
-          >
+            <span>Like</span>
+          </Segment>
+          <Segment value="meh" selected={feedback?.quality} onChange={handleQuality} selectedTone="muted">
             <Minus className="h-3.5 w-3.5" />
-            Meh
-          </button>
-          <button
-            onClick={() => handleQuality('dislike')}
-            className={cn(
-              'flex items-center gap-1 rounded-xl px-3 py-1 text-sm transition-all duration-200',
-              feedback?.quality === 'dislike'
-                ? 'bg-danger/20 text-danger'
-                : 'bg-bg-tertiary text-text-muted hover:text-text-primary',
-            )}
-          >
+            <span>Meh</span>
+          </Segment>
+          <Segment value="dislike" selected={feedback?.quality} onChange={handleQuality} selectedTone="danger">
             <ThumbsDown className="h-3.5 w-3.5" />
-            Dislike
-          </button>
-          <button
-            onClick={() => handleQuality('broken')}
-            className={cn(
-              'flex items-center gap-1 rounded-xl px-3 py-1 text-sm transition-all duration-200',
-              feedback?.quality === 'broken'
-                ? 'bg-warning/20 text-warning'
-                : 'bg-bg-tertiary text-text-muted hover:text-text-primary',
-            )}
-          >
+            <span>Dislike</span>
+          </Segment>
+          <Segment value="broken" selected={feedback?.quality} onChange={handleQuality} selectedTone="warning">
             <AlertTriangle className="h-3.5 w-3.5" />
-            Broken
-          </button>
-        </div>
+            <span>Broken</span>
+          </Segment>
+        </SegmentedGroup>
       </div>
 
-      {/* Read Original */}
-      <div className="border-t border-border pt-3">
+      {/* Read original */}
+      <div className="border-t border-separator pt-3">
         <a
           href={articleUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-accent transition-all duration-200 hover:text-accent-hover"
+          className="inline-flex items-center gap-1.5 text-sm text-accent transition-colors duration-150 hover:text-accent-hover"
         >
           <ExternalLink className="h-4 w-4" />
-          Read Original Article
+          Read original article
         </a>
       </div>
     </div>

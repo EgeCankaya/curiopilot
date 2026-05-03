@@ -33,7 +33,7 @@ The pipeline is orchestrated as a [LangGraph](https://github.com/langchain-ai/la
 - **Email digest** — receive daily briefings via SMTP email
 - **Desktop app** — native window via PyWebView with embedded server
 - **Keyboard-driven UI** — full keyboard navigation with shortcuts modal
-- **Dark mode** — CSS variable theming with light/dark toggle
+- **Apple-style dark UI** — Sonoma-inspired surfaces with hairline dividers, glass modals, segmented controls, and label-case section headers; light/dark toggle via CSS variables
 - **Fully local** — SQLite + ChromaDB + JSON files, no external services beyond Ollama
 
 ## Prerequisites

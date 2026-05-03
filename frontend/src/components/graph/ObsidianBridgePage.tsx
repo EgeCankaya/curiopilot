@@ -79,13 +79,13 @@ export default function ObsidianBridgePage() {
             <Network className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-text-primary">Your Knowledge Graph</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-text-primary">Your knowledge graph</h1>
             <p className="text-sm text-text-muted">Lives in Obsidian</p>
           </div>
         </div>
 
         {/* Stats summary */}
-        <div className="rounded-2xl bg-bg-elevated p-5 shadow-md shadow-border-subtle/30">
+        <div className="rounded-2xl border border-border-subtle/60 bg-bg-card p-5">
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <span className="text-2xl font-bold text-text-primary">{totalConcepts}</span>
             <span className="text-sm text-text-muted">concepts</span>
@@ -105,9 +105,9 @@ export default function ObsidianBridgePage() {
             onClick={handleOpenObsidian}
             disabled={!status?.configured}
             className={cn(
-              'flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium shadow transition-colors',
+              'flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-colors',
               status?.configured
-                ? 'bg-accent text-white hover:bg-accent/90'
+                ? 'bg-accent text-white hover:bg-accent-hover'
                 : 'cursor-not-allowed bg-bg-tertiary text-text-muted',
             )}
           >
@@ -119,8 +119,8 @@ export default function ObsidianBridgePage() {
             onClick={handleExport}
             disabled={exporting || !status?.configured}
             className={cn(
-              'flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium shadow transition-colors',
-              'bg-bg-elevated text-text-primary hover:bg-bg-hover',
+              'flex items-center gap-2 rounded-xl border border-border-subtle/60 px-5 py-2.5 text-sm font-medium transition-colors',
+              'bg-bg-card text-text-primary hover:bg-bg-hover',
               (exporting || !status?.configured) && 'cursor-not-allowed opacity-60',
             )}
           >
@@ -135,7 +135,7 @@ export default function ObsidianBridgePage() {
 
         {/* Export success toast */}
         {exportSuccess && (
-          <div className="rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-2.5 text-sm text-green-400">
+          <div className="rounded-xl border border-success/20 bg-success/10 px-4 py-2.5 text-sm text-success">
             Vault exported successfully.
           </div>
         )}
@@ -179,21 +179,21 @@ export default function ObsidianBridgePage() {
         {status?.vault_path && (
           <div className="space-y-1.5">
             <h2 className="text-sm font-semibold text-text-secondary">Vault Path</h2>
-            <div className="flex items-center gap-2 rounded-xl bg-bg-elevated px-4 py-2.5">
+            <div className="flex items-center gap-2 rounded-xl border border-border-subtle/60 bg-bg-card px-4 py-2.5">
               <code className="flex-1 truncate text-xs text-text-muted">{status.vault_path}</code>
               <button
                 type="button"
                 onClick={handleCopyPath}
                 className="shrink-0 text-text-muted transition-colors hover:text-text-primary"
               >
-                {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
               </button>
             </div>
           </div>
         )}
 
         {!status?.configured && (
-          <div className="rounded-xl border border-border bg-bg-elevated px-5 py-4 text-sm text-text-muted">
+          <div className="rounded-xl border border-border-subtle/60 bg-bg-card px-5 py-4 text-sm text-text-muted">
             No vault path configured. Set <code className="rounded bg-bg-tertiary px-1.5 py-0.5 text-xs">obsidian_vault_path</code> in your <code className="rounded bg-bg-tertiary px-1.5 py-0.5 text-xs">config.yaml</code> paths section to enable Obsidian integration.
           </div>
         )}

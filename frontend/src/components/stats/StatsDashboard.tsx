@@ -6,10 +6,10 @@ import {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-bg-elevated p-4 shadow-md shadow-border-subtle/30">
+    <div className="flex items-center gap-3 rounded-2xl border border-border-subtle/60 bg-bg-card p-4">
       <div className="text-accent">{icon}</div>
       <div>
-        <div className="text-lg font-semibold text-text-primary">{value}</div>
+        <div className="text-lg font-semibold text-text-primary tabular-nums">{value}</div>
         <div className="text-xs text-text-muted">{label}</div>
       </div>
     </div>
@@ -47,7 +47,7 @@ export default function StatsDashboard() {
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-6 md:p-8">
       <div>
-        <h2 className="text-2xl font-bold text-text-primary">System Statistics</h2>
+        <h2 className="text-2xl font-bold tracking-tight text-text-primary">System statistics</h2>
         <p className="mt-1 text-sm text-text-secondary">
           Overview of your CurioPilot knowledge base
         </p>
@@ -102,10 +102,10 @@ export default function StatsDashboard() {
       {/* Articles per briefing chart */}
       {chartData.length > 1 && (
         <section>
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-text-muted">
+          <h3 className="mb-3 text-[13px] font-medium text-text-secondary">
             Articles per Briefing (last {chartData.length})
           </h3>
-          <div className="rounded-2xl bg-bg-elevated p-4 shadow-md shadow-border-subtle/30">
+          <div className="rounded-2xl border border-border-subtle/60 bg-bg-card p-4">
             <div className="flex items-end gap-1" style={{ height: '120px' }}>
               {chartData.map((b) => {
                 const pct = (b.article_count / maxArticles) * 100

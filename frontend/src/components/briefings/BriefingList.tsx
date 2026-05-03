@@ -25,7 +25,7 @@ export default function BriefingList({ briefings, selectedDate, onSelectDate, lo
 
   return (
     <div className="p-1.5">
-      <div className="px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-text-muted">
+      <div className="px-2 py-1.5 text-[13px] font-medium text-text-secondary">
         Briefings
       </div>
       {briefings.map((b) => {
@@ -39,10 +39,10 @@ export default function BriefingList({ briefings, selectedDate, onSelectDate, lo
             key={b.briefing_date}
             onClick={() => onSelectDate(b.briefing_date)}
             className={cn(
-              'flex w-full flex-col gap-1 rounded-xl px-3 py-2.5 text-left text-sm transition-all duration-200',
+              'flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150',
               selectedDate === b.briefing_date
-                ? 'bg-bg-active text-text-primary'
-                : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                ? 'bg-accent/15 text-text-primary'
+                : 'text-text-secondary hover:bg-bg-hover/60 hover:text-text-primary',
             )}
           >
             <div className="flex items-center justify-between">

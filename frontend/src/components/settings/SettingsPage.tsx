@@ -61,7 +61,7 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-3xl space-y-6 p-6 md:p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-text-primary">Settings</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-text-primary">Settings</h2>
           <p className="mt-1 text-sm text-text-secondary">Configure your CurioPilot instance</p>
         </div>
         <button
@@ -78,16 +78,16 @@ export default function SettingsPage() {
         <div className="rounded-xl bg-danger/10 px-4 py-2 text-sm text-danger">{saveError}</div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      {/* Tabs (Settings.app pill bar) */}
+      <div className="inline-flex gap-0.5 rounded-xl border border-border-subtle/60 bg-bg-tertiary p-0.5">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={cn(
-              'rounded-t-lg px-4 py-2 text-sm font-medium transition-colors',
+              'rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors duration-150',
               tab === t.id
-                ? 'bg-bg-elevated text-text-primary'
+                ? 'bg-bg-card text-text-primary shadow-sm'
                 : 'text-text-muted hover:text-text-secondary',
             )}
           >
@@ -195,7 +195,7 @@ function SourcesTab({
   return (
     <div className="space-y-3">
       {sources.map((s, idx) => (
-        <div key={s.name} className="rounded-2xl bg-bg-elevated p-4">
+        <div key={s.name} className="rounded-2xl border border-border-subtle/60 bg-bg-card p-4">
           <div className="flex items-center justify-between">
             <div>
               <span className="font-medium text-text-primary">{s.name}</span>
@@ -380,7 +380,7 @@ function EmailTab({
     }
   }
 
-  const inputClass = 'w-full rounded-xl bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/40'
+  const inputClass = 'w-full rounded-xl border border-border-subtle/60 bg-bg-card px-3 py-2 text-sm text-text-primary focus:border-accent/50 focus:outline-none'
 
   return (
     <div className="space-y-6">
@@ -453,7 +453,7 @@ function EmailTab({
       </div>
 
       {/* Test Email Section */}
-      <div className="rounded-2xl bg-bg-elevated p-4 space-y-3">
+      <div className="space-y-3 rounded-2xl border border-border-subtle/60 bg-bg-card p-4">
         <p className="text-xs text-text-muted">
           The SMTP password is read from the <code className="rounded bg-bg-tertiary px-1.5 py-0.5 text-text-secondary">CURIOPILOT_SMTP_PASSWORD</code> environment
           variable at runtime. Enter your Gmail App Password below to send a test email.

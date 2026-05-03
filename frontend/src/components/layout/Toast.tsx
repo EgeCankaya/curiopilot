@@ -61,11 +61,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   return (
     <div
       className={cn(
-        'pointer-events-auto flex items-center gap-3 rounded-xl px-4 py-3 shadow-lg backdrop-blur-sm',
+        'pointer-events-auto flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-xl',
         'animate-in slide-in-from-right-5 fade-in duration-200',
-        toast.type === 'success' && 'bg-emerald-600/90 text-white',
-        toast.type === 'error' && 'bg-red-600/90 text-white',
-        toast.type === 'info' && 'bg-bg-elevated text-text-primary shadow-md',
+        toast.type === 'success' && 'border-success/30 bg-success/15 text-success',
+        toast.type === 'error' && 'border-danger/30 bg-danger/15 text-danger',
+        toast.type === 'info' && 'border-border-subtle/60 bg-bg-glass text-text-primary',
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />

@@ -31,7 +31,7 @@ export default function Sidebar({ topSlot, bottomSlot, open = true, isMobile = f
           <div className="flex-1 overflow-y-auto">
             {topSlot}
           </div>
-          <div className="border-t border-border-subtle flex-1 overflow-y-auto">
+          <div className="border-t border-separator flex-1 overflow-y-auto">
             {bottomSlot}
           </div>
         </aside>
@@ -40,11 +40,11 @@ export default function Sidebar({ topSlot, bottomSlot, open = true, isMobile = f
   }
 
   return (
-    <aside className="flex w-[300px] shrink-0 flex-col bg-bg-secondary shadow-[1px_0_0_0] shadow-border-subtle">
+    <aside className="flex w-[300px] shrink-0 flex-col border-r border-separator bg-bg-secondary">
       <div className="flex-1 overflow-y-auto">
         {topSlot}
       </div>
-      <div className="border-t border-border-subtle flex-1 overflow-y-auto">
+      <div className="border-t border-separator flex-1 overflow-y-auto">
         {bottomSlot}
       </div>
     </aside>

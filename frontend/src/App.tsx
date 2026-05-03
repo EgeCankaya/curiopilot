@@ -189,7 +189,7 @@ export default function App() {
             <div className="flex shrink-0 items-center gap-1 border-b border-border bg-bg-primary px-6 pt-3 md:px-8">
               <button
                 type="button"
-                className="rounded-t-lg px-4 py-2 text-sm font-medium transition-colors bg-bg-elevated text-text-primary shadow-sm"
+                className="rounded-t-lg border border-b-0 border-border-subtle/60 bg-bg-card px-4 py-2 text-sm font-medium text-text-primary transition-colors"
               >
                 Analysis
               </button>

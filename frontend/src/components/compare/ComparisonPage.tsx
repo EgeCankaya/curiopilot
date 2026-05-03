@@ -14,7 +14,7 @@ export default function ComparisonPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6 md:p-8">
       <div>
-        <h2 className="text-2xl font-bold text-text-primary">Compare Briefings</h2>
+        <h2 className="text-2xl font-bold tracking-tight text-text-primary">Compare briefings</h2>
         <p className="mt-1 text-sm text-text-secondary">See how topics evolved between two briefings</p>
       </div>
 
@@ -56,7 +56,7 @@ export default function ComparisonPage() {
       {/* Concept diff */}
       {diff && (
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
+          <h3 className="text-[13px] font-medium text-text-secondary">
             Concept Evolution
           </h3>
           <div className="grid grid-cols-3 gap-4">
@@ -93,7 +93,7 @@ export default function ComparisonPage() {
 function ConceptColumn({ title, concepts, color }: { title: string; concepts: string[]; color: string }) {
   return (
     <div className="rounded-2xl bg-bg-elevated p-4">
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">{title}</h4>
+      <h4 className="mb-2 text-[13px] font-medium text-text-secondary">{title}</h4>
       <div className="flex flex-wrap gap-1.5">
         {concepts.length === 0 && <span className="text-xs text-text-muted">None</span>}
         {concepts.map((c) => (
@@ -108,7 +108,7 @@ function ConceptColumn({ title, concepts, color }: { title: string; concepts: st
 
 function BriefingSummary({ detail, label }: { detail: BriefingDetail; label: string }) {
   return (
-    <div className="rounded-2xl bg-bg-elevated p-4">
+    <div className="rounded-2xl border border-border-subtle/60 bg-bg-card p-4">
       <h4 className="mb-2 text-sm font-semibold text-text-primary">{label}</h4>
       <p className="mb-3 text-xs text-text-muted">{detail.articles.length} articles</p>
       <div className="space-y-2">

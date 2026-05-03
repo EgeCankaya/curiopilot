@@ -12,7 +12,7 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
-    <section className="mt-6 rounded-2xl border border-border bg-bg-elevated shadow-md shadow-border-subtle/30">
+    <section className="mt-6 rounded-2xl border border-border-subtle/60 bg-bg-card">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center justify-between px-5 py-3.5 text-left text-sm font-medium text-text-secondary transition-all duration-200 hover:text-text-primary"
@@ -28,10 +28,10 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
       </button>
 
       {expanded && (
-        <div className="space-y-4 border-t border-border px-5 pb-5 pt-4">
+        <div className="space-y-4 border-t border-separator px-5 pb-5 pt-4">
           {/* Summary */}
           <div>
-            <h4 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <h4 className="mb-1 flex items-center gap-1.5 text-[13px] font-medium text-text-secondary">
               <Lightbulb className="h-3.5 w-3.5" />
               Summary
             </h4>
@@ -41,7 +41,7 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
           {/* Novel Insights */}
           {article.novel_insights && (
             <div>
-              <h4 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-muted">
+              <h4 className="mb-1 flex items-center gap-1.5 text-[13px] font-medium text-text-secondary">
                 <Sparkles className="h-3.5 w-3.5" />
                 Novel Insights
               </h4>
@@ -52,7 +52,7 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
           {/* Key Concepts */}
           {article.key_concepts.length > 0 && (
             <div>
-              <h4 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-muted">
+              <h4 className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-text-secondary">
                 <Tag className="h-3.5 w-3.5" />
                 Key Concepts
               </h4>
@@ -60,7 +60,7 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
                 {article.key_concepts.map((concept) => (
                   <span
                     key={concept}
-                    className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent"
+                    className="rounded-full border border-accent/25 bg-accent/5 px-2.5 py-0.5 text-xs font-medium text-accent"
                   >
                     {concept}
                   </span>
@@ -72,7 +72,7 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
           {/* Related Topics */}
           {article.related_topics.length > 0 && (
             <div>
-              <h4 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-muted">
+              <h4 className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-text-secondary">
                 <Link2 className="h-3.5 w-3.5" />
                 Related Topics
               </h4>
@@ -81,7 +81,7 @@ export default function AnalysisSection({ article, defaultExpanded = true }: Ana
                   <span
                     key={topic}
                     className={cn(
-                      'rounded-full bg-bg-tertiary px-2.5 py-0.5 text-xs text-text-muted',
+                      'rounded-full border border-border-subtle/60 bg-bg-tertiary px-2.5 py-0.5 text-xs text-text-secondary',
                     )}
                   >
                     {topic}

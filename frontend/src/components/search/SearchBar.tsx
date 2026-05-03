@@ -46,7 +46,7 @@ export default function SearchBar({ onNavigate }: SearchBarProps) {
             }
           }}
           placeholder="Search articles\u2026"
-          className="w-full rounded-xl bg-bg-tertiary py-1.5 pl-9 pr-8 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
+          className="w-full rounded-xl border border-border-subtle/60 bg-bg-card py-1.5 pl-9 pr-8 text-sm text-text-primary placeholder:text-text-muted focus:border-accent/50 focus:outline-none"
         />
         {query && (
           <button
@@ -60,7 +60,7 @@ export default function SearchBar({ onNavigate }: SearchBarProps) {
 
       {/* Results dropdown */}
       {open && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[400px] overflow-y-auto rounded-xl border border-border bg-bg-elevated shadow-lg">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[400px] overflow-y-auto rounded-2xl border border-border-subtle/60 bg-bg-glass shadow-lg backdrop-blur-xl">
           {loading && results.length === 0 && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-text-muted">
               <Loader2 className="h-4 w-4 animate-spin" />

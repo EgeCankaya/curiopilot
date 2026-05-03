@@ -26,7 +26,7 @@ export default function ArticleList({
 
   return (
     <div className="p-1">
-      <div className="px-2 py-1.5 text-xs font-medium uppercase tracking-wider text-text-muted">
+      <div className="px-2 py-1.5 text-[13px] font-medium text-text-secondary">
         Articles ({articles.length})
       </div>
       {articles.map((a) => (

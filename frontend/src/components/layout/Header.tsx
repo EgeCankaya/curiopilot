@@ -52,7 +52,7 @@ export default function Header({
   const ThemeIcon = current.icon
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between bg-bg-secondary/80 px-3 shadow-sm backdrop-blur-xl sm:px-5">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-separator bg-bg-glass px-3 backdrop-blur-xl sm:px-5">
       <div className="flex items-center gap-2">
         {isMobile && activeView === 'briefings' && (
           <button

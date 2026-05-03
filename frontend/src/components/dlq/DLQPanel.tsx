@@ -39,7 +39,7 @@ export default function DLQPanel() {
     <div className="mx-auto max-w-4xl space-y-6 p-6 md:p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-text-primary">Dead Letter Queue</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-text-primary">Dead letter queue</h2>
           <p className="text-sm text-text-muted">
             Articles that failed during pipeline processing
           </p>
@@ -57,7 +57,7 @@ export default function DLQPanel() {
             <button
               onClick={handleClear}
               disabled={clearing}
-              className="flex items-center gap-1.5 rounded-xl bg-red-500/15 px-3 py-1.5 text-sm font-medium text-red-500 transition-all hover:bg-red-500/25 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-danger/10 px-3 py-1.5 text-sm font-medium text-danger transition-all hover:bg-danger/20 disabled:opacity-50"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Clear All
@@ -78,7 +78,7 @@ export default function DLQPanel() {
 
       {/* Error state */}
       {error && (
-        <div className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-500">
+        <div className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -105,7 +105,7 @@ export default function DLQPanel() {
           {items.map((item) => (
             <div
               key={item.url}
-              className="flex items-start gap-3 rounded-xl bg-bg-elevated p-4 transition-colors hover:bg-bg-hover"
+              className="flex items-start gap-3 rounded-2xl border border-border-subtle/60 bg-bg-card p-4 transition-colors hover:bg-bg-hover/40"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -122,10 +122,10 @@ export default function DLQPanel() {
                   </a>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
-                  <span className="rounded-md bg-bg-primary px-1.5 py-0.5 font-mono">
+                  <span className="rounded-md bg-bg-tertiary px-1.5 py-0.5 font-mono">
                     {item.phase}
                   </span>
-                  <span className="rounded-md bg-red-500/10 px-1.5 py-0.5 text-red-400">
+                  <span className="rounded-md bg-danger/10 px-1.5 py-0.5 text-danger">
                     {item.error_type}
                   </span>
                   {item.source_name && (
@@ -143,7 +143,7 @@ export default function DLQPanel() {
               <button
                 onClick={() => handleRemove(item.url)}
                 disabled={removing === item.url}
-                className="shrink-0 rounded-lg p-1.5 text-text-muted transition-colors hover:bg-red-500/15 hover:text-red-400 disabled:opacity-50"
+                className="shrink-0 rounded-lg p-1.5 text-text-muted transition-colors hover:bg-danger/15 hover:text-danger disabled:opacity-50"
                 title="Remove from DLQ"
               >
                 {removing === item.url ? (
@@ -162,9 +162,9 @@ export default function DLQPanel() {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl bg-bg-elevated p-3">
+    <div className="rounded-2xl border border-border-subtle/60 bg-bg-card p-3">
       <p className="text-xs text-text-muted">{label}</p>
-      <p className="text-lg font-semibold text-text-primary">{value}</p>
+      <p className="text-lg font-semibold text-text-primary tabular-nums">{value}</p>
     </div>
   )
 }
