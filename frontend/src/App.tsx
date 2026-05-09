@@ -5,7 +5,7 @@ import ContentPanel from '@/components/layout/ContentPanel'
 import BriefingList from '@/components/briefings/BriefingList'
 import ArticleList from '@/components/articles/ArticleList'
 import BriefingOverview from '@/components/briefings/BriefingOverview'
-import ArticleView from '@/components/articles/ArticleView'
+import ArticleView, { ArticleBodySection } from '@/components/articles/ArticleView'
 import AnalysisSection from '@/components/articles/AnalysisSection'
 import FeedbackControls from '@/components/feedback/FeedbackControls'
 import PipelineProgress from '@/components/pipeline/PipelineProgress'
@@ -25,9 +25,8 @@ import { usePipelineRun } from '@/hooks/usePipelineRun'
 import { useTheme } from '@/hooks/useTheme'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useKeyboardNav } from '@/hooks/useKeyboardNav'
-import { cn } from '@/lib/utils'
 import { openReaderWindow } from '@/lib/api'
-import { AppWindow, Loader2 } from 'lucide-react'
+import { AppWindow } from 'lucide-react'
 
 export type AppView = 'briefings' | 'stats' | 'graph' | 'settings' | 'compare' | 'dlq'
 
@@ -75,17 +74,16 @@ export default function App() {
   }, [])
 
   // Auto-select latest briefing date on first load
-  useEffect(() => {
-    if (!selectedDate && briefings.length > 0) {
-      setSelectedDate(briefings[0].briefing_date)
-    }
-  }, [briefings, selectedDate])
+  if (!selectedDate && briefings.length > 0) {
+    setSelectedDate(briefings[0].briefing_date)
+  }
 
-  // Close sidebar on mobile when not needed
-  useEffect(() => {
-    if (isMobile) setSidebarOpen(false)
-    else setSidebarOpen(true)
-  }, [isMobile])
+  // Close sidebar on mobile when not needed; reopen when leaving mobile
+  const [prevIsMobile, setPrevIsMobile] = useState(isMobile)
+  if (isMobile !== prevIsMobile) {
+    setPrevIsMobile(isMobile)
+    setSidebarOpen(!isMobile)
+  }
 
   const handleSelectDate = (date: string) => {
     setSelectedDate(date)
@@ -211,11 +209,7 @@ export default function App() {
                 onToggleBookmark={selectedDate && selectedArticle ? () => bookmarksHook.toggle(selectedDate, selectedArticle) : undefined}
               />
               {article && (
-                <>
-                  <AnalysisSection
-                    article={article}
-                    defaultExpanded={!feedback.get(selectedArticle)?.read}
-                  />
+                <div className="mt-6 space-y-6">
                   <FeedbackControls
                     date={selectedDate}
                     articleNumber={selectedArticle}
@@ -223,7 +217,12 @@ export default function App() {
                     feedback={feedback.get(selectedArticle)}
                     onUpdate={(patch) => updateFeedbackLocal(selectedArticle, patch)}
                   />
-                </>
+                  <AnalysisSection
+                    article={article}
+                    defaultExpanded={!feedback.get(selectedArticle)?.read}
+                  />
+                  <ArticleBodySection article={article} />
+                </div>
               )}
             </ContentPanel>
           </div>

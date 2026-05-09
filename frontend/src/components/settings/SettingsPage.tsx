@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useConfig } from '@/hooks/useConfig'
-import { Loader2, AlertCircle, Check, X, Plus, Save, Mail } from 'lucide-react'
+import { Loader2, AlertCircle, X, Plus, Save, Mail } from 'lucide-react'
 import { sendTestEmail } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -331,6 +331,9 @@ function ModelsTab({
               onChange={(e) => onChange({ ...models, [key]: e.target.value })}
               className="w-full rounded-xl bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/40"
             >
+              {!available.find((m) => m.name === models[key]) && (
+                <option value={models[key]}>{models[key]}</option>
+              )}
               {available.map((m) => (
                 <option key={m.name} value={m.name}>
                   {m.name} ({(m.size / 1e9).toFixed(1)}GB)

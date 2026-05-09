@@ -5,15 +5,18 @@ import { fetchFeedback } from '@/lib/api'
 export function useFeedback(date: string | null) {
   const [feedback, setFeedback] = useState<Map<number, FeedbackItem>>(new Map())
   const [loading, setLoading] = useState(false)
+  const [prevDate, setPrevDate] = useState<string | null>(date)
+
+  if (date !== prevDate) {
+    setPrevDate(date)
+    setFeedback(new Map())
+    setLoading(date !== null)
+  }
 
   useEffect(() => {
-    if (!date) {
-      setFeedback(new Map())
-      return
-    }
+    if (!date) return
 
     let cancelled = false
-    setLoading(true)
 
     fetchFeedback(date)
       .then((items) => {

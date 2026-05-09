@@ -20,16 +20,27 @@ export function useCompare(dateLeft: string | null, dateRight: string | null) {
   const [left, setLeft] = useState<BriefingDetail | null>(null)
   const [right, setRight] = useState<BriefingDetail | null>(null)
   const [loading, setLoading] = useState(false)
+  const [prevLeft, setPrevLeft] = useState<string | null>(dateLeft)
+  const [prevRight, setPrevRight] = useState<string | null>(dateRight)
+
+  if (dateLeft !== prevLeft) {
+    setPrevLeft(dateLeft)
+    if (!dateLeft) setLeft(null)
+    else setLoading(true)
+  }
+  if (dateRight !== prevRight) {
+    setPrevRight(dateRight)
+    if (!dateRight) setRight(null)
+    else setLoading(true)
+  }
 
   useEffect(() => {
-    if (!dateLeft) { setLeft(null); return }
-    setLoading(true)
+    if (!dateLeft) return
     fetchBriefing(dateLeft).then(setLeft).catch(() => setLeft(null)).finally(() => setLoading(false))
   }, [dateLeft])
 
   useEffect(() => {
-    if (!dateRight) { setRight(null); return }
-    setLoading(true)
+    if (!dateRight) return
     fetchBriefing(dateRight).then(setRight).catch(() => setRight(null)).finally(() => setLoading(false))
   }, [dateRight])
 

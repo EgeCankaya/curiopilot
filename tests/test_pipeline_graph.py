@@ -94,6 +94,46 @@ class TestDedupNodeCollapsesInBatchDuplicates:
         finally:
             await store.close()
 
+    @pytest.mark.asyncio
+    async def test_collapses_urls_differing_only_in_tracking_params(
+        self, tmp_path: Path
+    ) -> None:
+        """The Medium-RSS scenario: same article, different ?source= values."""
+        store = URLStore(tmp_path / "test.db")
+        await store.open()
+        try:
+            base = "https://medium.com/@neonmaxima/rag-pipelines-04bc72599925"
+            articles = [
+                ArticleEntry(
+                    title="RAG Pipelines",
+                    url=base + "?source=rss------machine_learning-5",
+                    source_name="Medium ML",
+                ),
+                ArticleEntry(
+                    title="RAG Pipelines",
+                    url=base + "?source=rss------artificial_intelligence-5",
+                    source_name="Medium AI",
+                ),
+            ]
+            config = SimpleNamespace(
+                scoring=SimpleNamespace(dedup_window_days=0, briefed_dedup_window_days=0)
+            )
+            state = {
+                "config": config,
+                "store": store,
+                "all_articles": articles,
+                "dry_run": False,
+            }
+
+            result = await dedup_node(state)
+
+            new = result["new_articles"]
+            assert len(new) == 1
+            assert new[0].source_name == "Medium ML"
+            assert new[0].url == base
+        finally:
+            await store.close()
+
 
 class TestBuildPipelineGraph:
     def test_compiles_without_error(self) -> None:

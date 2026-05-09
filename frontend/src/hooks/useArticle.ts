@@ -6,16 +6,20 @@ export function useArticle(date: string | null, articleNumber: number | null) {
   const [article, setArticle] = useState<ArticleFull | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [prevKey, setPrevKey] = useState<string>(`${date ?? ''}:${articleNumber ?? ''}`)
+
+  const key = `${date ?? ''}:${articleNumber ?? ''}`
+  if (key !== prevKey) {
+    setPrevKey(key)
+    setArticle(null)
+    setError(null)
+    setLoading(Boolean(date && articleNumber))
+  }
 
   useEffect(() => {
-    if (!date || !articleNumber) {
-      setArticle(null)
-      return
-    }
+    if (!date || !articleNumber) return
 
     let cancelled = false
-    setLoading(true)
-    setError(null)
 
     fetchArticle(date, articleNumber)
       .then((data) => {

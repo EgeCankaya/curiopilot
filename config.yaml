@@ -217,8 +217,8 @@ paths:
   graph_path: ./data/knowledge_graph.json
   obsidian_vault_path: F:/Coding/Obisidan
 email:
-  enabled: false
+  enabled: true
   smtp_host: smtp.gmail.com
   smtp_port: 587
   sender_email: egemencankaya14@gmail.com
-  recipient_email: 'egemencankaya14@gmail.com'
+  recipient_email: egemencankaya14@gmail.com

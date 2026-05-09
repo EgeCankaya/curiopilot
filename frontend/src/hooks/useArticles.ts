@@ -7,17 +7,20 @@ export function useArticles(date: string | null) {
   const [detail, setDetail] = useState<BriefingDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [prevDate, setPrevDate] = useState<string | null>(date)
+
+  if (date !== prevDate) {
+    setPrevDate(date)
+    setArticles([])
+    setDetail(null)
+    setError(null)
+    setLoading(date !== null)
+  }
 
   useEffect(() => {
-    if (!date) {
-      setArticles([])
-      setDetail(null)
-      return
-    }
+    if (!date) return
 
     let cancelled = false
-    setLoading(true)
-    setError(null)
 
     fetchBriefing(date)
       .then((data) => {

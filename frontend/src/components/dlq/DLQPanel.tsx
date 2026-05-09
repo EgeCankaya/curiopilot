@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useDLQ } from '@/hooks/useDLQ'
-import { useToast } from '@/components/layout/Toast'
+import { useToast } from '@/hooks/useToast'
 import { Loader2, Trash2, RefreshCw, AlertTriangle, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 

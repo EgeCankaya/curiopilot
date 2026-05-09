@@ -7,6 +7,8 @@ from pathlib import Path
 
 import aiosqlite
 
+from curiopilot.utils.url import normalize_url
+
 log = logging.getLogger(__name__)
 
 _SCHEMA = """\
@@ -112,7 +114,7 @@ class URLStore:
 
     async def is_visited(self, url: str) -> bool:
         cursor = await self._db.execute(
-            "SELECT 1 FROM visited_urls WHERE url = ?", (url,)
+            "SELECT 1 FROM visited_urls WHERE url = ?", (normalize_url(url),)
         )
         return (await cursor.fetchone()) is not None
 
@@ -130,7 +132,8 @@ class URLStore:
         """
         if not urls:
             return set()
-        placeholders = ",".join("?" for _ in urls)
+        norm_urls = [normalize_url(u) for u in urls]
+        placeholders = ",".join("?" for _ in norm_urls)
         if dedup_window_days > 0:
             sql = (
                 f"SELECT url FROM visited_urls WHERE url IN ({placeholders}) AND ("
@@ -140,17 +143,17 @@ class URLStore:
                 ")"
             )
             params = [
-                *urls,
+                *norm_urls,
                 f"-{briefed_dedup_window_days} days",
                 f"-{dedup_window_days} days",
             ]
             cursor = await self._db.execute(sql, params)
         else:
             cursor = await self._db.execute(
-                f"SELECT url FROM visited_urls WHERE url IN ({placeholders})", urls
+                f"SELECT url FROM visited_urls WHERE url IN ({placeholders})", norm_urls
             )
         known = {row[0] for row in await cursor.fetchall()}
-        return set(urls) - known
+        return set(norm_urls) - known
 
     async def mark_visited(
         self,
@@ -173,7 +176,7 @@ class URLStore:
                 relevance_score = excluded.relevance_score,
                 was_briefed = 0
             """,
-            (url, title, source_name, passed_relevance, relevance_score),
+            (normalize_url(url), title, source_name, passed_relevance, relevance_score),
         )
         await self._db.commit()
 
@@ -195,7 +198,7 @@ class URLStore:
                 relevance_score = excluded.relevance_score,
                 was_briefed = 0
             """,
-            rows,
+            [(normalize_url(r[0]), *r[1:]) for r in rows],
         )
         await self._db.commit()
 
@@ -203,10 +206,11 @@ class URLStore:
         """Mark URLs as having been included in a briefing."""
         if not urls:
             return
-        placeholders = ",".join("?" for _ in urls)
+        norm = [normalize_url(u) for u in urls]
+        placeholders = ",".join("?" for _ in norm)
         await self._db.execute(
             f"UPDATE visited_urls SET was_briefed = 1 WHERE url IN ({placeholders})",
-            urls,
+            norm,
         )
         await self._db.commit()
 

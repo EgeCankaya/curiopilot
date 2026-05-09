@@ -39,11 +39,8 @@ export default function ArticleView({ article, loading, error, bookmarked, onTog
 
   if (!article) return null
 
-  const hasBody = article.body_content && article.body_content.trim().length > 0
-
   return (
-    <article className="space-y-6">
-      {/* Header */}
+    <article>
       <header className="space-y-3">
         <div className="flex items-start gap-2">
           <h2 className="flex-1 text-2xl font-bold leading-tight text-text-primary">
@@ -83,17 +80,19 @@ export default function ArticleView({ article, loading, error, bookmarked, onTog
           </div>
         )}
       </header>
-
-      {/* Body */}
-      {hasBody ? (
-        <ArticleBody
-          content={article.body_content}
-          contentType={article.body_content_type}
-        />
-      ) : (
-        <FallbackBody article={article} />
-      )}
     </article>
+  )
+}
+
+export function ArticleBodySection({ article }: { article: ArticleFull }) {
+  const hasBody = article.body_content && article.body_content.trim().length > 0
+  return hasBody ? (
+    <ArticleBody
+      content={article.body_content}
+      contentType={article.body_content_type}
+    />
+  ) : (
+    <FallbackBody article={article} />
   )
 }
 

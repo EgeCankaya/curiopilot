@@ -3,7 +3,6 @@ import {
   fetchBookmarks,
   addBookmark,
   removeBookmark,
-  checkBookmark,
   fetchCollections,
   createCollection,
   deleteCollection,

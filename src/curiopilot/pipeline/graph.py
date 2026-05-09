@@ -27,6 +27,7 @@ from curiopilot.storage.article_store import ArticleStore
 from curiopilot.storage.knowledge_graph import GraphUpdateStats, KnowledgeGraph
 from curiopilot.storage.url_store import URLStore
 from curiopilot.storage.vector_store import VectorStore
+from curiopilot.utils.url import normalize_url
 
 log = logging.getLogger(__name__)
 
@@ -234,6 +235,8 @@ async def discover_node(state: PipelineState) -> dict:
             *[_scrape_one(s, batch_start + i) for i, s in enumerate(batch)]
         )
         for articles in batch_results:
+            for a in articles:
+                a.url = normalize_url(a.url)
             all_articles.extend(articles)
 
     return {"all_articles": all_articles}
@@ -248,6 +251,8 @@ async def dedup_node(state: PipelineState) -> dict:
     cb = state.get("progress_callback")
 
     _notify(cb, "dedup", 0, 1)
+    for a in all_articles:
+        a.url = normalize_url(a.url)
     urls = [a.url for a in all_articles]
     new_urls = await store.filter_new_urls(
         urls,
