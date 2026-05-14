@@ -106,6 +106,9 @@ class PipelineState(TypedDict, total=False):
     # DLQ tracking (accumulated across phases)
     dlq_failures: list[dict]
 
+    # Per-phase wall-clock timings (seconds), accumulated across phases
+    phase_timings: dict[str, float]
+
 
 # ── Node functions ───────────────────────────────────────────────────────────
 
@@ -800,6 +803,22 @@ def checkpointed(phase: str, fn):
     return wrapper
 
 
+def timed(phase: str, fn):
+    """Wrap a node function to record its wall-clock duration into state."""
+    async def wrapper(state: PipelineState) -> dict:
+        t_start = time.monotonic()
+        result = await fn(state)
+        elapsed = time.monotonic() - t_start
+        result = dict(result) if result else {}
+        timings = dict(state.get("phase_timings") or {})
+        timings[phase] = timings.get(phase, 0.0) + elapsed
+        result["phase_timings"] = timings
+        log.info("Phase '%s' completed in %.2fs", phase, elapsed)
+        return result
+    wrapper.__name__ = fn.__name__
+    return wrapper
+
+
 # ── Graph builder ────────────────────────────────────────────────────────────
 
 
@@ -814,15 +833,15 @@ def build_pipeline_graph(*, start_from: str | None = None) -> StateGraph:
     """Construct the LangGraph StateGraph for the CurioPilot pipeline."""
     graph = StateGraph(PipelineState)
 
-    graph.add_node("ingest_feedback", checkpointed("ingest_feedback", ingest_feedback_node))
-    graph.add_node("discover", checkpointed("discover", discover_node))
-    graph.add_node("dedup", checkpointed("dedup", dedup_node))
-    graph.add_node("filter", checkpointed("filter", filter_node))
-    graph.add_node("swap_to_reader", swap_to_reader_node)
-    graph.add_node("deep_read", checkpointed("deep_read", deep_read_node))
-    graph.add_node("novelty", checkpointed("novelty", novelty_node))
-    graph.add_node("graph_update", checkpointed("graph_update", graph_update_node))
-    graph.add_node("briefing", checkpointed("briefing", briefing_node))
+    graph.add_node("ingest_feedback", timed("ingest_feedback", checkpointed("ingest_feedback", ingest_feedback_node)))
+    graph.add_node("discover", timed("discover", checkpointed("discover", discover_node)))
+    graph.add_node("dedup", timed("dedup", checkpointed("dedup", dedup_node)))
+    graph.add_node("filter", timed("filter", checkpointed("filter", filter_node)))
+    graph.add_node("swap_to_reader", timed("swap_to_reader", swap_to_reader_node))
+    graph.add_node("deep_read", timed("deep_read", checkpointed("deep_read", deep_read_node)))
+    graph.add_node("novelty", timed("novelty", checkpointed("novelty", novelty_node)))
+    graph.add_node("graph_update", timed("graph_update", checkpointed("graph_update", graph_update_node)))
+    graph.add_node("briefing", timed("briefing", checkpointed("briefing", briefing_node)))
 
     entry = start_from if start_from and start_from in PHASE_ORDER else "ingest_feedback"
     graph.set_entry_point(entry)

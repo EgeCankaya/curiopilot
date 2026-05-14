@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -28,7 +29,8 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
     articles_scanned INTEGER,
     articles_relevant INTEGER,
     articles_briefed INTEGER,
-    new_concepts_added INTEGER
+    new_concepts_added INTEGER,
+    phase_timings TEXT
 );
 
 CREATE TABLE IF NOT EXISTS article_feedback (
@@ -95,6 +97,14 @@ class URLStore:
         try:
             await self._conn.execute(
                 "ALTER TABLE visited_urls ADD COLUMN was_briefed BOOLEAN DEFAULT 0"
+            )
+            await self._conn.commit()
+        except Exception:
+            pass  # Column already exists
+        # Migration: add phase_timings column if missing
+        try:
+            await self._conn.execute(
+                "ALTER TABLE pipeline_runs ADD COLUMN phase_timings TEXT"
             )
             await self._conn.commit()
         except Exception:
@@ -228,19 +238,22 @@ class URLStore:
         articles_relevant: int,
         articles_briefed: int,
         new_concepts_added: int,
+        phase_timings: dict[str, float] | None = None,
     ) -> None:
         """Insert a pipeline run record."""
+        timings_json = json.dumps(phase_timings) if phase_timings else None
         await self._db.execute(
             """\
             INSERT OR REPLACE INTO pipeline_runs
                 (run_id, started_at, completed_at, articles_scanned,
-                 articles_relevant, articles_briefed, new_concepts_added)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                 articles_relevant, articles_briefed, new_concepts_added,
+                 phase_timings)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id, started_at, completed_at,
                 articles_scanned, articles_relevant, articles_briefed,
-                new_concepts_added,
+                new_concepts_added, timings_json,
             ),
         )
         await self._db.commit()

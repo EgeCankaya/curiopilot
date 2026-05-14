@@ -206,8 +206,11 @@ function SourcesTab({
               <input
                 type="number"
                 value={s.max_articles}
-                onChange={(e) => updateSource(idx, 'max_articles', parseInt(e.target.value) || 1)}
-                min={1}
+                onChange={(e) => {
+                  const parsed = parseInt(e.target.value)
+                  updateSource(idx, 'max_articles', Number.isNaN(parsed) ? 0 : Math.max(0, parsed))
+                }}
+                min={0}
                 max={100}
                 className="w-16 rounded-lg bg-bg-tertiary px-2 py-1 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/40"
               />

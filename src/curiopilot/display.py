@@ -62,6 +62,9 @@ def print_run_summary(result: RunResult, *, dry_run: bool = False) -> None:
                 f"({gs.most_connected_edges} edges)"
             )
 
+    if result.phase_timings:
+        _print_phase_timings(result.phase_timings, result.duration_seconds)
+
     console.print()
 
     if dry_run or not result.scored:
@@ -175,6 +178,30 @@ def _print_briefing_summary(result: RunResult) -> None:
             _safe(short_summary),
         )
 
+    console.print(table)
+
+
+_PHASE_DISPLAY_ORDER = [
+    "ingest_feedback", "discover", "dedup", "filter",
+    "swap_to_reader", "deep_read", "novelty", "graph_update", "briefing",
+]
+
+
+def _print_phase_timings(timings: dict[str, float], total_seconds: float) -> None:
+    """Print per-phase wall-clock breakdown sorted by pipeline order."""
+    console.print()
+    table = Table(title="Phase Timings", show_lines=False)
+    table.add_column("Phase")
+    table.add_column("Duration", justify="right")
+    table.add_column("% of run", justify="right")
+
+    ordered = [p for p in _PHASE_DISPLAY_ORDER if p in timings]
+    ordered.extend(p for p in timings if p not in _PHASE_DISPLAY_ORDER)
+    denom = total_seconds if total_seconds > 0 else 1.0
+    for phase in ordered:
+        secs = float(timings[phase])
+        pct = 100.0 * secs / denom
+        table.add_row(phase, _fmt_duration(secs), f"{pct:.1f}%")
     console.print(table)
 
 

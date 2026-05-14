@@ -40,7 +40,7 @@ class SourceConfig(BaseModel):
     scraper: str
     url: str | None = None
     query: str | None = None
-    max_articles: int = Field(default=30, ge=1)
+    max_articles: int = Field(default=30, ge=0)
     request_delay_seconds: float = Field(default=3.0, ge=0)
     api_key: str | None = None
 

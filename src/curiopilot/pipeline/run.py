@@ -39,6 +39,7 @@ class RunResult:
     duration_seconds: float = 0.0
     dlq_failures: list[dict] = field(default_factory=list)
     stop_reason: str = ""
+    phase_timings: dict[str, float] = field(default_factory=dict)
 
 
 async def run_pipeline(
@@ -128,6 +129,7 @@ async def run_pipeline(
             "incremental": incremental,
             "checkpoint_store": checkpoint_store,
             "dlq_failures": [],
+            "phase_timings": {},
         }
 
         # If resuming, merge checkpoint data into initial state
@@ -151,6 +153,7 @@ async def run_pipeline(
         result.briefing_path = final_state.get("briefing_path")
         result.briefing_markdown = final_state.get("briefing_markdown", "")
         result.dlq_failures = final_state.get("dlq_failures", [])
+        result.phase_timings = dict(final_state.get("phase_timings", {}))
 
         # Infer stop reason when pipeline ended early without a briefing
         if not dry_run and not result.briefing_path:
@@ -180,6 +183,7 @@ async def run_pipeline(
                 articles_relevant=result.articles_filtered,
                 articles_briefed=len(result.summaries),
                 new_concepts_added=result.graph_stats.nodes_added,
+                phase_timings=result.phase_timings or None,
             )
         except Exception:
             log.debug("Failed to record pipeline run", exc_info=True)
